@@ -1,0 +1,14 @@
+{
+  "name": "tantra-bucket",
+  "version": "1.0.0",
+  "description": "Bucket Service - Artifact storage with verification for TANTRA",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.9.0",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2"
+  }
+}

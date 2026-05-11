@@ -1,0 +1,15 @@
+{
+  "name": "tantra-sarathi",
+  "version": "1.0.0",
+  "description": "Sarathi Authority Service - JWT issuance for TANTRA",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.0",
+    "winston": "^3.8.2"
+  }
+}
