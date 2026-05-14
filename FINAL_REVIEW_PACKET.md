@@ -62,6 +62,34 @@ Core (3000) → Sarathi (3001) → Bridge (3002) → Execution (3003) → Bucket
 5. **No access control on Bucket** — anyone can store/retrieve artifacts.
 6. **No CI/CD** — no automated test runner.
 
+## Sarathi Bridge Integration Alignment
+
+This implementation architecturally aligns with Sarathi v15.6 Bridge Integration Contract guarantees at the semantic enforcement level:
+
+| Sarathi Guarantee | Current Implementation | Verification |
+|---|---|---|
+| Passive Bridge enforcement | Bridge validates only, never generates tokens | `services/BRIDGE_AUDIT.md` — zero forbidden patterns |
+| External authority validation | JWT verified against Sarathi-hosted public key | `services/sarathi/app.js:72-76` — `jwt.verify` with `issuer: tantra-sarathi` |
+| Fail-closed verification | Invalid/expired/missing token → 401, no degraded mode | `services/bridge/app.js:103-106` — hard fail on validation error |
+| Replay rejection | jti-based replay cache in Bridge, single-use tokens | `services/bridge/app.js:92-98` — `replayCache.has(decoded.jti)` → 401 |
+| No local token minting | Bridge has zero `jwt.sign` calls | `grep` across bridge/ shows zero hits |
+| No fallback authorization | Bridge hard-fails if Sarathi public key fetch fails | `services/bridge/app.js:52-55` — throws, never caches degraded key |
+| Trace propagation semantics | trace_id/execution_id immutable across all 5 services | Verified end-to-end — Core → Sarathi → Bridge → Execution → Bucket |
+
+### Scope Note — Reviewer/Demo-Grade Validation
+
+This implementation intentionally uses a **reviewer/demo-grade JWT validation flow** suitable for architectural demonstration and security property validation. It does **not** implement full Sarathi v15.6 production protocol parity, specifically:
+
+- **EdDSA/Ed25519 authority stack** — Current implementation uses RS256 (RSA 2048-bit), not the Ed25519 signature scheme specified in Sarathi v15.6 production profiles.
+- **JWKS discovery/rotation** — Public key is fetched once via `/public-key` endpoint and cached. No JWKS URI (`/.well-known/jwks.json`), no automatic key rotation, no key ID (`kid`) header based key selection.
+- **OIDC-style authority metadata** — No OpenID Connect Discovery document, no `/.well-known/openid-configuration`, no standardised issuer metadata endpoint.
+- **Full `sarathi:*` claims surface** — Token payload includes `trace_id`, `execution_id`, `iss`, `aud`, `jti`, `iat` but does not implement the complete Sarathi v15.6 claims vocabulary (`sarathi:auth_level`, `sarathi:capabilities`, `sarathi:policy_hash`, `sarathi:governance_nonce`, etc.).
+- **Production cryptographic governance layer** — No hardware security module (HSM) integration, no attestation binding, no signed governance manifests, no key ceremony tooling.
+
+**This is a deliberate scope decision**, not an architectural deficiency. The current implementation demonstrates all critical security properties (passive enforcement, external authority, fail-closed, replay rejection) in a runnable, reviewer-verifiable form. The full production cryptographic stack is a separate deployment concern that builds on — rather than replaces — the architectural patterns proven here.
+
+For production deployment, the Sarathi v15.6 reference implementation should be used, which adds EdDSA signing, JWKS rotation, OIDC metadata, full claims surface, and HSM-backed governance.
+
 ## Bucket Integration Alignment
 
 This implementation aligns architecturally with the `Primary_Bucket_Owner` reference implementation at the semantic level:
