@@ -1,0 +1,9 @@
+{
+  "name": "tantra-observability",
+  "version": "1.0.0",
+  "description": "Passive telemetry and observability integration for TANTRA Gated Bridge",
+  "main": "telemetry_emitter.js",
+  "scripts": {
+    "test": "node -e 'const t=require(\"./telemetry_emitter\"); const c=require(\"./trace_collector\"); console.log(\"Observability modules loaded\")'"
+  }
+}

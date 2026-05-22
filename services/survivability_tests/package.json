@@ -1,0 +1,10 @@
+{
+  "name": "tantra-survivability-tests",
+  "version": "1.0.0",
+  "description": "Survivability test suite for TANTRA Gated Bridge replay infrastructure",
+  "main": "test_suite.js",
+  "scripts": {
+    "test": "node test_suite.js",
+    "proof": "node test_suite.js --proof"
+  }
+}

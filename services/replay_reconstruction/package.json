@@ -1,0 +1,10 @@
+{
+  "name": "tantra-replay-reconstruction",
+  "version": "1.0.0",
+  "description": "Replay reconstruction and verification tooling for TANTRA Gated Bridge",
+  "main": "reconstruction_tool.js",
+  "scripts": {
+    "reconstruct": "node reconstruction_tool.js",
+    "verify": "node verification_flow.js"
+  }
+}

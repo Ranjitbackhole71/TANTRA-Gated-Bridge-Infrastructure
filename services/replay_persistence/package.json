@@ -1,0 +1,10 @@
+{
+  "name": "tantra-replay-persistence",
+  "version": "1.0.0",
+  "description": "Append-only replay persistence module for TANTRA Gated Bridge",
+  "main": "append_only_store.js",
+  "scripts": {
+    "test": "node -e 'const s=require(\"./append_only_store\"); const r=require(\"./lineage_tracker\"); const c=require(\"./continuity_recorder\"); console.log(\"All modules loaded\")'",
+    "verify": "node -e 'const s=require(\"./append_only_store\"); const r=s.validateChainIntegrity(); console.log(JSON.stringify(r,null,2))'"
+  }
+}

@@ -145,6 +145,64 @@ Response:
 }
 ```
 
+---
+
+## Survivability + Replay Hardening Layer (v1.0)
+
+### Replay Persistence Module (`replay_persistence/`)
+
+The replay persistence layer provides append-only, restart-safe record storage for all execution events.
+
+**Components**:
+- `append_only_store.js` — Core append-only log with SHA-256 hash chain (JSONL format)
+- `lineage_tracker.js` — Immutable lineage reference tracking and graph building
+- `continuity_recorder.js` — Records execution transitions, rejections, and dependency failures
+- `idempotency_store.js` — Distributed-safe idempotency via append-only log scanning
+
+**Records persisted to**: `replay_persistence/data/replay_log.jsonl`
+
+**Key Guarantees**:
+- Append-only: records never modified after write
+- Hash chain: each record links to previous via `parent_hash`
+- Restart-safe: all state survives service restart
+- Deterministic replay: same inputs produce identical reconstruction
+
+### Replay Reconstruction Module (`replay_reconstruction/`)
+
+**Components**:
+- `reconstruction_tool.js` — Trace/execution reconstruction from persisted records
+- `lineage_graph.js` — Full lineage graph reconstruction across executions
+- `corruption_detector.js` — Tamper detection via hash chain verification
+- `verification_flow.js` — Deterministic replay verification and integrity checks
+
+**Reconstruction Commands**:
+```bash
+node replay_reconstruction/reconstruction_tool.js <trace_id>
+node replay_reconstruction/verification_flow.js <trace_id>
+```
+
+### Observability Module (`observability/`)
+
+**Components**:
+- `telemetry_emitter.js` — Passive structured execution telemetry
+- `trace_collector.js` — Distributed trace span emission
+- `replay_hooks.js` — Replay visibility hooks (explicitly called, never self-registering)
+
+**Constraints**:
+- ALL telemetry is passive (`passive: true` in every payload)
+- NO middleware registration
+- NO header injection for context propagation
+
+### Survivability Tests (`survivability_tests/`)
+
+7 scenarios covering bridge restart, bucket restart, reconstruction persistence, corrupted lineage isolation, concurrent validation, failure propagation, and degraded trace continuity.
+
+Run:
+```bash
+cd survivability_tests
+node test_suite.js --proof
+```
+
 ### POST /store (Bucket)
 Request:
 ```json

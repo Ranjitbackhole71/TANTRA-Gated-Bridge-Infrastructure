@@ -1,0 +1,139 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TANTRA Observability Telemetry Schema",
+  "description": "JSON Schema for observability telemetry events recorded in the append-only replay log.",
+  "definitions": {
+    "telemetry_base": {
+      "type": "object",
+      "required": ["trace_id", "event_type", "service", "status", "payload"],
+      "properties": {
+        "trace_id": { "type": "string", "format": "uuid" },
+        "execution_id": { "type": ["string", "null"], "format": "uuid" },
+        "parent_execution_id": { "type": ["string", "null"], "format": "uuid" },
+        "event_type": { "type": "string", "pattern": "^telemetry:" },
+        "service": { "type": "string" },
+        "status": { "type": "string" },
+        "payload": {
+          "type": "object",
+          "required": ["telemetry", "passive"],
+          "properties": {
+            "telemetry": { "type": "boolean", "const": true },
+            "passive": { "type": "boolean", "const": true }
+          }
+        },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "parent_hash": { "type": ["string", "null"] },
+        "sequence": { "type": "integer" },
+        "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "host": { "type": "string" }
+      }
+    },
+    "execution_transition": {
+      "allOf": [
+        { "$ref": "#/definitions/telemetry_base" },
+        {
+          "properties": {
+            "event_type": { "const": "telemetry:execution_transition" },
+            "payload": {
+              "properties": {
+                "from_status": { "type": "string" },
+                "transition_type": { "const": "state_change" }
+              },
+              "required": ["from_status"]
+            }
+          }
+        }
+      ]
+    },
+    "rejection": {
+      "allOf": [
+        { "$ref": "#/definitions/telemetry_base" },
+        {
+          "properties": {
+            "event_type": { "const": "telemetry:rejection" },
+            "status": { "const": "rejected" },
+            "payload": {
+              "properties": {
+                "rejection_reason": { "type": "string" }
+              },
+              "required": ["rejection_reason"]
+            }
+          }
+        }
+      ]
+    },
+    "dependency_failure": {
+      "allOf": [
+        { "$ref": "#/definitions/telemetry_base" },
+        {
+          "properties": {
+            "event_type": { "const": "telemetry:dependency_failure" },
+            "status": { "const": "failed" },
+            "payload": {
+              "properties": {
+                "failed_dependency": { "type": "string" },
+                "error_message": { "type": "string" },
+                "failure_type": { "type": "string" }
+              },
+              "required": ["failed_dependency", "error_message"]
+            }
+          }
+        }
+      ]
+    },
+    "replay_verification": {
+      "allOf": [
+        { "$ref": "#/definitions/telemetry_base" },
+        {
+          "properties": {
+            "event_type": { "const": "telemetry:replay_verification" },
+            "service": { "const": "replay_reconstruction" },
+            "payload": {
+              "properties": {
+                "verification_id": { "type": "string", "format": "uuid" },
+                "outcome": { "type": "string", "enum": ["pass", "fail"] }
+              },
+              "required": ["verification_id", "outcome"]
+            }
+          }
+        }
+      ]
+    },
+    "trace_span": {
+      "type": "object",
+      "required": ["trace_id", "event_type", "service", "status", "payload"],
+      "properties": {
+        "trace_id": { "type": "string", "format": "uuid" },
+        "execution_id": { "type": ["string", "null"], "format": "uuid" },
+        "parent_execution_id": { "type": ["string", "null"], "format": "uuid" },
+        "event_type": { "type": "string", "pattern": "^trace:" },
+        "service": { "type": "string" },
+        "status": { "type": "string" },
+        "payload": {
+          "type": "object",
+          "required": ["span_id", "trace_passive"],
+          "properties": {
+            "span_id": { "type": "string", "format": "uuid" },
+            "trace_passive": { "type": "boolean", "const": true },
+            "hop": { "type": "integer" },
+            "from": { "type": "string" },
+            "to": { "type": "string" }
+          }
+        },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "parent_hash": { "type": ["string", "null"] },
+        "sequence": { "type": "integer" },
+        "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "host": { "type": "string" }
+      }
+    }
+  },
+  "telemetry_event_types": {
+    "telemetry:request_received": "Bridge ingress. Payload: method, path, has_token.",
+    "telemetry:execution_transition": "State change. Payload: from_status, to_status.",
+    "telemetry:rejection": "Token/ID validation failure. Payload: rejection_reason.",
+    "telemetry:dependency_failure": "Service unavailable. Payload: failed_dependency, error_message.",
+    "telemetry:response_sent": "Response sent to Core. Payload: status, result.",
+    "telemetry:replay_verification": "Verification run. Payload: verification_id, outcome."
+  }
+}
