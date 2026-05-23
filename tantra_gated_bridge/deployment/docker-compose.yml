@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  core:
+    build:
+      context: ../services/core
+      dockerfile: Dockerfile
+    ports:
+      - "${CORE_PORT:-3000}:3000"
+    environment:
+      - PORT=3000
+      - SARATHI_URL=http://sarathi:3001
+      - BRIDGE_URL=http://bridge:3002
+    depends_on:
+      sarathi:
+        condition: service_started
+      bridge:
+        condition: service_started
+    networks:
+      - tantra-network
+    restart: unless-stopped
+
+  sarathi:
+    build:
+      context: ../services/sarathi
+      dockerfile: Dockerfile
+    ports:
+      - "${SARATHI_PORT:-3001}:3001"
+    environment:
+      - PORT=3001
+      - ISSUER=tantra-sarathi
+      - JWT_EXPIRY=1h
+      - JWT_EXPIRY_MS=3600000
+    networks:
+      - tantra-network
+    restart: unless-stopped
+
+  bridge:
+    build:
+      context: ../services/bridge
+      dockerfile: Dockerfile
+    ports:
+      - "${BRIDGE_PORT:-3002}:3002"
+    environment:
+      - PORT=3002
+      - SARATHI_URL=http://sarathi:3001
+      - EXECUTION_URL=http://execution:3003
+    depends_on:
+      - sarathi
+      - execution
+    networks:
+      - tantra-network
+    restart: unless-stopped
+
+  execution:
+    build:
+      context: ../services/execution
+      dockerfile: Dockerfile
+    ports:
+      - "${EXECUTION_PORT:-3003}:3003"
+    environment:
+      - PORT=3003
+      - SARATHI_URL=http://sarathi:3001
+      - BUCKET_URL=http://bucket:3004
+    depends_on:
+      - sarathi
+      - bucket
+    networks:
+      - tantra-network
+    restart: unless-stopped
+
+  bucket:
+    build:
+      context: ../services/bucket
+      dockerfile: Dockerfile
+    ports:
+      - "${BUCKET_PORT:-3004}:3004"
+    environment:
+      - PORT=3004
+    volumes:
+      - bucket-data:/app
+    networks:
+      - tantra-network
+    restart: unless-stopped
+
+volumes:
+  bucket-data:
+
+networks:
+  tantra-network:
+    driver: bridge

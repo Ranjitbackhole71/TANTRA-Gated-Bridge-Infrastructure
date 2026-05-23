@@ -1,0 +1,10 @@
+node_modules/
+.env
+*.log
+*.db
+services/**/data/
+services/bucket/bucket.db
+services/survivability_tests/proof/
+logs/
+.DS_Store
+*.pid

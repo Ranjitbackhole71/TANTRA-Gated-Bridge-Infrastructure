@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  core:
+    build: ./core
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - SARATHI_URL=http://sarathi:3001
+      - BRIDGE_URL=http://bridge:3002
+    depends_on:
+      - sarathi
+      - bridge
+    networks:
+      - tantra-network
+
+  sarathi:
+    build: ./sarathi
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - ISSUER=tantra-sarathi
+    volumes:
+      - ./sarathi:/app
+    networks:
+      - tantra-network
+
+  bridge:
+    build: ./bridge
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - SARATHI_URL=http://sarathi:3001
+      - EXECUTION_URL=http://execution:3003
+    depends_on:
+      - sarathi
+      - execution
+    networks:
+      - tantra-network
+
+  execution:
+    build: ./execution
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+      - SARATHI_URL=http://sarathi:3001
+      - BUCKET_URL=http://bucket:3004
+    depends_on:
+      - sarathi
+      - bucket
+    networks:
+      - tantra-network
+
+  bucket:
+    build: ./bucket
+    ports:
+      - "3004:3004"
+    environment:
+      - PORT=3004
+    volumes:
+      - ./bucket/artifacts:/app/artifacts
+    networks:
+      - tantra-network
+
+networks:
+  tantra-network:
+    driver: bridge
