@@ -57,7 +57,7 @@ try {
 Write-Host "[3/5] Replay persistence check..."
 try {
     $recordCount = & node -e "
-    const store = require('./services/replay_persistence/append_only_store');
+    const store = require('../services/replay_persistence/append_only_store');
     console.log(store.getChainState().record_count);
     "
     Write-Host "  PASS: Replay log has $recordCount records"
@@ -69,7 +69,7 @@ try {
 Write-Host "[4/5] Chain integrity check..."
 try {
     $integrityResult = & node -e "
-    const store = require('./services/replay_persistence/append_only_store');
+    const store = require('../services/replay_persistence/append_only_store');
     const result = store.validateChainIntegrity();
     console.log(JSON.stringify(result));
     "
