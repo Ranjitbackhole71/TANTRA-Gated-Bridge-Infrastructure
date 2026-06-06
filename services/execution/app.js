@@ -2,6 +2,8 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const axios = require('axios');
+const path = require('path');
+const replayHooks = require('../observability/replay_hooks');
 require('dotenv').config();
 
 const app = express();
@@ -58,6 +60,9 @@ const validateBridgeSignature = async (req, res, next) => {
     });
 
     req.bridgeTokenData = decoded;
+    req.trace_id = decoded.trace_id;
+    req.execution_id = decoded.execution_id;
+    replayHooks.hookServiceTransition(decoded.trace_id, decoded.execution_id, 'execution', 'pending', 'validated');
     next();
   } catch (err) {
     log(null, null, 'execution', 'error', `Bridge signature validation failed: ${err.message}`);
@@ -91,6 +96,7 @@ app.post('/run', validateBridgeSignature, enforceImmutableIds, async (req, res) 
   const { workload } = req.body;
 
   log(trace_id, execution_id, 'execution', 'info', 'Executing workload');
+  replayHooks.hookServiceTransition(trace_id, execution_id, 'execution', 'validated', 'processing');
 
   try {
     // Execute workload (simulated - in production would run actual code)
@@ -109,6 +115,7 @@ app.post('/run', validateBridgeSignature, enforceImmutableIds, async (req, res) 
 
     // Store in Bucket with read-after-write verification
     log(trace_id, execution_id, 'execution', 'info', 'Storing artifact in Bucket');
+    replayHooks.hookServiceTransition(trace_id, execution_id, 'execution', 'processing', 'storing');
     
     const bucketResponse = await axios.post(
       `${BUCKET_URL}/store`,
@@ -120,6 +127,8 @@ app.post('/run', validateBridgeSignature, enforceImmutableIds, async (req, res) 
     );
 
     log(trace_id, execution_id, 'execution', 'success', 'Execution completed, artifact stored');
+    replayHooks.hookExecutionResponse(trace_id, execution_id, 'completed', { artifact_location: bucketResponse.data.location, duration_ms: duration });
+    replayHooks.hookServiceTransition(trace_id, execution_id, 'execution', 'storing', 'completed');
     res.json({
       trace_id,
       execution_id,
@@ -131,6 +140,8 @@ app.post('/run', validateBridgeSignature, enforceImmutableIds, async (req, res) 
   } catch (err) {
     // HARD FAIL: If bucket or execution fails - stop immediately
     log(trace_id, execution_id, 'execution', 'error', `Execution failed: ${err.message}`);
+    replayHooks.hookExecutionFailure(trace_id, execution_id, err, err.response ? 'bucket' : 'execution');
+    replayHooks.hookServiceTransition(trace_id, execution_id, 'execution', 'processing', 'failed');
     
     if (err.response) {
       return res.status(err.response.status).json(err.response.data);
@@ -144,9 +155,19 @@ app.post('/run', validateBridgeSignature, enforceImmutableIds, async (req, res) 
   }
 });
 
-// Simulated workload execution
+// Adapter-based execution participant
 async function executeWorkload(workload, trace_id, execution_id) {
-  // In production, this would execute actual code/tasks
+  const participantPath = process.env.EXECUTION_PARTICIPANT;
+  if (participantPath) {
+    try {
+      const participant = require(path.resolve(participantPath));
+      return await participant.executeWorkload(workload, trace_id, execution_id);
+    } catch (err) {
+      log(trace_id, execution_id, 'execution', 'error', `Execution participant failed: ${err.message}`);
+      throw err;
+    }
+  }
+  // Default simulated execution
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve({

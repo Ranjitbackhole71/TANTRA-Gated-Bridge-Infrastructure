@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const keyPersistence = require('./key_persistence');
 require('dotenv').config();
 
 const app = express();
@@ -34,19 +35,21 @@ setInterval(() => {
   }
 }, 60000); // Clean every minute
 
-// Generate RSA key pair if not provided
-let PRIVATE_KEY = process.env.PRIVATE_KEY;
-let PUBLIC_KEY = process.env.PUBLIC_KEY;
-
-if (!PRIVATE_KEY || !PUBLIC_KEY) {
-  const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
-    modulusLength: 2048,
-    publicKeyEncoding: { type: 'spki', format: 'pem' },
-    privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
-  });
-  PRIVATE_KEY = privateKey;
-  PUBLIC_KEY = publicKey;
-  log(null, null, 'sarathi', 'info', 'Generated new RSA key pair');
+// Load or generate RSA key pair (persisted across restarts)
+let PRIVATE_KEY, PUBLIC_KEY, KEY_META;
+if (process.env.PRIVATE_KEY && process.env.PUBLIC_KEY) {
+  PRIVATE_KEY = process.env.PRIVATE_KEY;
+  PUBLIC_KEY = process.env.PUBLIC_KEY;
+  log(null, null, 'sarathi', 'info', 'Using keys from environment variables');
+} else {
+  const keys = keyPersistence.loadOrGenerateKeys();
+  PRIVATE_KEY = keys.privateKey;
+  PUBLIC_KEY = keys.publicKey;
+  KEY_META = keys.meta;
+  log(null, null, 'sarathi', 'info', keys.generated ? 'Generated new RSA key pair' : 'Loaded existing RSA key pair');
+  if (KEY_META) {
+    log(null, null, 'sarathi', 'info', `Key ID: ${KEY_META.key_id}, Rotation: ${KEY_META.rotation_count}`);
+  }
 }
 
 const ISSUER = process.env.ISSUER || 'tantra-sarathi';

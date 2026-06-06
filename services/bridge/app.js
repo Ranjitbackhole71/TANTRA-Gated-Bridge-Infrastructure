@@ -2,6 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const crypto = require('crypto');
+const replayHooks = require('../observability/replay_hooks');
 require('dotenv').config();
 
 const app = express();
@@ -60,6 +61,7 @@ const validateToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     log(null, null, 'bridge', 'error', 'Missing or invalid authorization header');
+    replayHooks.hookRejection(null, null, 'missing_token');
     return res.status(401).json({ error: 'Unauthorized: Missing token' });
   }
 
@@ -79,18 +81,21 @@ const validateToken = async (req, res, next) => {
     // Verify trace_id and execution_id exist
     if (!decoded.trace_id || !decoded.execution_id) {
       log(null, null, 'bridge', 'error', 'Token missing trace_id or execution_id');
+      replayHooks.hookRejection(decoded.trace_id, decoded.execution_id, 'missing_claims');
       return res.status(401).json({ error: 'Invalid token: missing required claims' });
     }
 
     // REPLAY PROTECTION: Check jti claim
     if (!decoded.jti) {
       log(decoded.trace_id, decoded.execution_id, 'bridge', 'error', 'Token missing jti claim');
+      replayHooks.hookRejection(decoded.trace_id, decoded.execution_id, 'missing_jti');
       return res.status(401).json({ error: 'Unauthorized: Missing jti claim' });
     }
 
     // Check if token has been used before (replay attack detection)
     if (replayCache.has(decoded.jti)) {
       log(decoded.trace_id, decoded.execution_id, 'bridge', 'error', `Replay attack detected - jti: ${decoded.jti}`);
+      replayHooks.hookRejection(decoded.trace_id, decoded.execution_id, 'replay_detected');
       return res.status(401).json({ error: 'Unauthorized: Token replay detected' });
     }
 
@@ -98,10 +103,13 @@ const validateToken = async (req, res, next) => {
     replayCache.set(decoded.jti, Date.now());
 
     req.tokenData = decoded;
+    req.trace_id = decoded.trace_id;
+    req.execution_id = decoded.execution_id;
     next();
   } catch (err) {
     // HARD FAIL: Invalid/tampered/expired token - BLOCK immediately
     log(null, null, 'bridge', 'error', `Token validation failed: ${err.message}`);
+    replayHooks.hookRejection(null, null, 'token_validation_failed');
     return res.status(401).json({ error: 'Unauthorized: Invalid token' });
   }
 };
@@ -116,10 +124,12 @@ const enforceImmutableIds = (req, res, next) => {
   // STRICT: IDs in body must match token - no mutation allowed
   if (bodyTraceId && bodyTraceId !== tokenTraceId) {
     log(tokenTraceId, tokenExecutionId, 'bridge', 'error', 'trace_id mutation detected');
+    replayHooks.hookRejection(tokenTraceId, tokenExecutionId, 'trace_id_mutation');
     return res.status(400).json({ error: 'trace_id mutation forbidden' });
   }
   if (bodyExecutionId && bodyExecutionId !== tokenExecutionId) {
     log(tokenTraceId, tokenExecutionId, 'bridge', 'error', 'execution_id mutation detected');
+    replayHooks.hookRejection(tokenTraceId, tokenExecutionId, 'execution_id_mutation');
     return res.status(400).json({ error: 'execution_id mutation forbidden' });
   }
 
@@ -140,6 +150,8 @@ app.post('/execute', validateToken, enforceImmutableIds, async (req, res) => {
   
   log(trace_id, execution_id, 'bridge', 'info', 'Request received, forwarding to execution');
 
+  replayHooks.hookServiceTransition(trace_id, execution_id, 'bridge', 'pending', 'forwarding');
+
   try {
     // FORWARD request to Execution Service - Bridge does NOT execute
     const response = await axios.post(
@@ -157,10 +169,14 @@ app.post('/execute', validateToken, enforceImmutableIds, async (req, res) => {
     );
 
     log(trace_id, execution_id, 'bridge', 'success', 'Execution completed');
+    replayHooks.hookExecutionResponse(trace_id, execution_id, 'completed', { statusCode: response.status });
+    replayHooks.hookServiceTransition(trace_id, execution_id, 'bridge', 'forwarding', 'completed');
     res.status(response.status).json(response.data);
   } catch (err) {
     // HARD FAIL: If execution service down - FAIL immediately, no fallback
     log(trace_id, execution_id, 'bridge', 'error', `Execution failed: ${err.message}`);
+    replayHooks.hookExecutionFailure(trace_id, execution_id, err, 'execution');
+    replayHooks.hookServiceTransition(trace_id, execution_id, 'bridge', 'forwarding', 'failed');
     
     if (err.response) {
       return res.status(err.response.status).json(err.response.data);

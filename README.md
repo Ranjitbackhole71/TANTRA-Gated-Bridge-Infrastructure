@@ -1,97 +1,80 @@
-# AI Agent - FastAPI Decision Engine
+# TANTRA Gated Bridge
 
-A FastAPI-based AI agent system that uses LLM to make decisions and execute data analysis tasks.
+Zero-trust, hard-fail distributed infrastructure pipeline.
 
-## Features
+## Architecture
 
-- **AI Decision Engine**: Uses LLM (OpenAI) to decide actions based on user queries
-- **Data Analysis Pipeline**: Analyzes CSV datasets with pandas
-- **Request Tracing**: Unique trace_id for each request with structured logging
-- **Input Validation**: Validates queries and file uploads
-- **Error Handling**: Structured error responses with trace_id
+```
+Core (:3000) → Sarathi (:3001) → Bridge (:3002) → Execution (:3003) → Bucket (:3004)
+```
 
-## Tech Stack
+## Quick Start
 
-- FastAPI - Web framework
-- OpenAI - LLM for decision making
-- Pandas - Data analysis
-- Python 3.8+
+### START (single command)
 
-## How to Run
-
-1. Install dependencies:
 ```bash
-pip install -r requirements.txt
+# Docker
+bash scripts/start.sh docker
+
+# Native (Node.js)
+bash scripts/start.sh native
 ```
 
-2. Set up environment variables in `.env`:
-```
-BUCKET_URL=your_bucket_url
-LLM_API_KEY=your_llm_key
+**Windows PowerShell:**
+```powershell
+.\scripts\start.ps1 -Mode docker
 ```
 
-3. Run the server:
+### VERIFY (single command)
+
 ```bash
-cd app
-uvicorn main:app --reload
+bash scripts/verify.sh
 ```
 
-4. Visit `http://localhost:8000/docs` to test the API
-
-## Example Request
-
-**Endpoint**: `POST /analyze`
-
-**Form Data**:
-- `query`: "Analyze this dataset"
-- `file`: (CSV file upload)
-
-**Response**:
-```json
-{
-  "trace_id": "a1b2c3d4",
-  "status": "success",
-  "action": {
-    "action": "analyze_dataset",
-    "reason": "User wants data analysis"
-  },
-  "result": {
-    "rows": 100,
-    "columns": 5,
-    "column_names": ["col1", "col2", "col3", "col4", "col5"],
-    "missing_values": {"col3": 2},
-    "summary_statistics": {
-      "col1": {"mean": 50.5, "median": 50.0, "min": 0.0, "max": 100.0}
-    }
-  }
-}
+**Windows PowerShell:**
+```powershell
+.\scripts\verify.ps1
 ```
 
-## Error Response Format
+### FULL CONVERGENCE PROOF (single command)
 
-```json
-{
-  "trace_id": "a1b2c3d4",
-  "status": "error",
-  "message": "File must be a CSV"
-}
+```bash
+bash scripts/convergence_proof.sh
 ```
 
----
+**Windows PowerShell:**
+```powershell
+.\scripts\convergence_proof.ps1
+```
 
-## TANTRA Gated Bridge — Survivability Layer
+## Requirements
 
-Replay persistence, reconstruction, observability, and survivability testing for the zero-trust distributed services pipeline.
+| Requirement | Status | Evidence |
+|---|---|---|
+| Real Execution Integration | COMPLETE | 5 services, adapter pattern, execution contract |
+| InsightFlow Participation | PARTIAL | Contract + adapter + proof harness (no live InsightFlow) |
+| Distributed Replay | COMPLETE | Append-only log, SHA-256 chain, idempotency, reconstruction |
+| Sarathi Authority Durability | COMPLETE | Key persistence, rotation support, restart-safe |
+| Degraded Survivability | COMPLETE | 13 scenarios (7 core + 6 enhanced) |
+| Plug-and-Play Packaging | COMPLETE | START/VERIFY/CONVERGENCE commands, Docker, env template |
+| Review Packet | COMPLETE | REVIEW_PACKET_FINAL_COMPLETION.md |
+| Testing Packet | COMPLETE | TESTING_PACKET_VINAYAK.md |
 
-See [services/README.md](services/README.md) for full documentation.
+## Services
 
-| Module | Status |
-|--------|--------|
-| Replay Persistence | Append-only JSONL log with SHA-256 hash chain. 7/7 survivability tests pass. |
-| Replay Reconstruction | Trace reconstruction, corruption detection, deterministic verification. |
-| Observability | Passive telemetry only. All events tagged `passive: true`. Zero execution authority. |
-| Survivability Tests | 7 scenarios: restart, corruption, concurrent validation, failure propagation. |
+| Service | Port | Role |
+|---------|------|------|
+| Core | 3000 | Entry point, generates UUIDs |
+| Sarathi | 3001 | JWT authority (RS256) |
+| Bridge | 3002 | Passive forwarding only |
+| Execution | 3003 | Workload execution (adapter-based) |
+| Bucket | 3004 | SQLite artifact storage |
 
-**Constitutional boundaries**: [CONSTITUTIONAL_REVIEW.md](services/CONSTITUTIONAL_REVIEW.md) · [HIDDEN_STATE_DISCLOSURE.md](services/HIDDEN_STATE_DISCLOSURE.md) · [DRIFT_RISK_ANALYSIS.md](services/DRIFT_RISK_ANALYSIS.md)
+## Key Features
 
-**Review packet**: [services/review_packets/REVIEW_PACKET_SURVIVABILITY_V1.md](services/review_packets/REVIEW_PACKET_SURVIVABILITY_V1.md)
+- **Zero-trust**: Every service validates JWTs, no fallback paths
+- **Replay protection**: jti claim prevents token replay
+- **Immutable trace**: trace_id/execution_id enforced across all services
+- **Persistent storage**: SQLite with read-after-write verification
+- **Replay persistence**: Append-only SHA-256 hash chain
+- **Survivability**: 13 scenarios proving failure recovery
