@@ -23,8 +23,10 @@ const PORT = process.env.PORT || 3002;
 const SARATHI_URL = process.env.SARATHI_URL || 'http://localhost:3001';
 const EXECUTION_URL = process.env.EXECUTION_URL || 'http://localhost:3003';
 
-// NO local key storage - must fetch from Sarathi
-let SARATHI_PUBLIC_KEY = null;
+// NO local key storage - must fetch from Sarathi via JWKS
+let jwksCache = null;
+let jwksCacheExpiry = 0;
+const JWKS_CACHE_TTL_MS = parseInt(process.env.JWKS_CACHE_TTL_MS) || 300000; // 5 min default
 
 // Replay protection: Track used jti claims
 const replayCache = new Map(); // jti -> timestamp
@@ -43,20 +45,47 @@ setInterval(() => {
 // BRIDGE RESPONSIBILITY ONLY: validate JWT, verify IDs, forward request
 // FORBIDDEN: token generation, execution logic, fallback paths, mock execution
 
-const fetchPublicKey = async () => {
-  if (SARATHI_PUBLIC_KEY) return SARATHI_PUBLIC_KEY;
+async function fetchJwks() {
+  const now = Date.now();
+  if (jwksCache && now < jwksCacheExpiry) {
+    return jwksCache;
+  }
   try {
-    const response = await axios.get(`${SARATHI_URL}/public-key`);
-    SARATHI_PUBLIC_KEY = response.data.public_key;
-    return SARATHI_PUBLIC_KEY;
+    const response = await axios.get(`${SARATHI_URL}/jwks`);
+    if (!response.data.keys || response.data.keys.length === 0) {
+      throw new Error('Empty JWKS keyset');
+    }
+    jwksCache = response.data.keys;
+    jwksCacheExpiry = now + JWKS_CACHE_TTL_MS;
+    log(null, null, 'bridge', 'info', `JWKS fetched (${jwksCache.length} keys, cache TTL ${JWKS_CACHE_TTL_MS}ms)`);
+    return jwksCache;
   } catch (err) {
-    // HARD FAIL: If Sarathi is down, system stops immediately
-    log(null, null, 'bridge', 'error', 'Sarathi unavailable - cannot fetch public key');
+    if (jwksCache) {
+      log(null, null, 'bridge', 'warn', 'JWKS fetch failed, using stale cache');
+      return jwksCache;
+    }
+    log(null, null, 'bridge', 'error', 'Sarathi unavailable - cannot fetch JWKS');
     throw new Error('Sarathi authority unavailable');
   }
-};
+}
 
-// Middleware: Validate JWT from Sarathi
+function resolveJwk(keys, kid) {
+  if (!kid) {
+    return keys[0];
+  }
+  const key = keys.find(k => k.kid === kid);
+  if (!key) {
+    throw new Error(`Unknown kid: ${kid}`);
+  }
+  return key;
+}
+
+function jwkToPem(jwk) {
+  const keyObj = crypto.createPublicKey({ format: 'jwk', key: jwk });
+  return keyObj.export({ format: 'pem', type: 'spki' });
+}
+
+// Middleware: Validate JWT from Sarathi via JWKS
 const validateToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -68,7 +97,17 @@ const validateToken = async (req, res, next) => {
   const token = authHeader.split(' ')[1];
   
   try {
-    const publicKey = await fetchPublicKey();
+    // Decode header to extract kid for key resolution
+    const decodedHeader = jwt.decode(token, { complete: true });
+    if (!decodedHeader || !decodedHeader.header) {
+      throw new Error('Failed to decode JWT header');
+    }
+    const kid = decodedHeader.header.kid;
+
+    // Fetch JWKS and resolve key by kid
+    const keys = await fetchJwks();
+    const jwk = resolveJwk(keys, kid);
+    const publicKey = jwkToPem(jwk);
     
     // STRICT JWT validation: issuer, expiry, signature
     const decoded = jwt.verify(token, publicKey, {

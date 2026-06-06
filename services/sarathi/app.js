@@ -55,6 +55,16 @@ if (process.env.PRIVATE_KEY && process.env.PUBLIC_KEY) {
 const ISSUER = process.env.ISSUER || 'tantra-sarathi';
 const PORT = process.env.PORT || 3001;
 
+// Generate JWK from active public key
+function generateJwk() {
+  const publicKeyObj = crypto.createPublicKey(PUBLIC_KEY);
+  const jwk = publicKeyObj.export({ format: 'jwk' });
+  jwk.alg = 'RS256';
+  jwk.kid = KEY_META.key_id;
+  jwk.use = 'sig';
+  return jwk;
+}
+
 // Health endpoint
 app.get('/health', (req, res) => {
   res.json({ service: 'sarathi', status: 'healthy', issuer: ISSUER });
@@ -84,8 +94,9 @@ app.post('/token', (req, res) => {
       iat: Math.floor(Date.now() / 1000)
     },
     PRIVATE_KEY,
-    { 
+    {
       algorithm: 'RS256',
+      keyid: KEY_META.key_id,
       expiresIn: process.env.JWT_EXPIRY || '1h'
     }
   );
@@ -100,6 +111,12 @@ app.post('/token', (req, res) => {
 // Public key endpoint - for verification by other services
 app.get('/public-key', (req, res) => {
   res.json({ public_key: PUBLIC_KEY });
+});
+
+// JWKS endpoint - standards-compliant JSON Web Key Set
+app.get('/jwks', (req, res) => {
+  const jwk = generateJwk();
+  res.json({ keys: [jwk] });
 });
 
 app.listen(PORT, () => {
