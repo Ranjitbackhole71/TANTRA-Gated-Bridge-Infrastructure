@@ -1,0 +1,8 @@
+{
+  "name": "insightflow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "InsightFlow integration contract, adapter, and proof harness",
+  "main": "adapter.js",
+  "dependencies": {}
+}

@@ -30,54 +30,58 @@ function hookExecutionRequest(req, res, next) {
   next();
 }
 
+function guard(fn) {
+  try { return fn(); } catch (e) { /* passive telemetry - skip on failure */ }
+}
+
 function hookExecutionResponse(traceId, executionId, status, details) {
-  telemetry.emitExecutionTelemetry({
+  guard(() => telemetry.emitExecutionTelemetry({
     trace_id: traceId,
     execution_id: executionId,
     service: 'bridge',
     event_type: 'response_sent',
     status,
     payload: details
-  });
+  }));
 }
 
 function hookExecutionFailure(traceId, executionId, error, dependency) {
-  telemetry.recordDependencyFailure({
+  guard(() => telemetry.recordDependencyFailure({
     trace_id: traceId,
     execution_id: executionId,
     dependency: dependency || 'unknown',
     error: error?.message || String(error),
     service: 'bridge'
-  });
+  }));
 }
 
 function hookRejection(traceId, executionId, reason) {
-  telemetry.recordRejection({
+  guard(() => telemetry.recordRejection({
     trace_id: traceId,
     execution_id: executionId,
     reason,
     service: 'bridge'
-  });
+  }));
 }
 
 function hookReplayVerification(traceId, executionId, outcome, details) {
-  telemetry.recordReplayVerification({
+  guard(() => telemetry.recordReplayVerification({
     trace_id: traceId,
     execution_id,
     verification_id: require('crypto').randomUUID(),
     outcome,
     details
-  });
+  }));
 }
 
 function hookServiceTransition(traceId, executionId, service, fromStatus, toStatus) {
-  telemetry.recordExecutionTransition({
+  guard(() => telemetry.recordExecutionTransition({
     trace_id: traceId,
     execution_id: executionId,
     service,
     from_status: fromStatus,
     to_status: toStatus
-  });
+  }));
 }
 
 module.exports = {
