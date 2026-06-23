@@ -1,20 +1,20 @@
 {
-  "created_at": "2026-05-30T07:05:00.804Z",
-  "rotation_count": 0,
+  "created_at": "2026-06-19T06:12:14.102Z",
   "algorithms": {
     "rs256": {
       "algorithm": "RS256",
       "key_size": 2048,
-      "key_id": "2d763eea-8755-45b8-ba3b-f9e45bb3f341",
+      "key_id": "0b1f8425-aee8-4822-bdf3-a852b2733a09",
       "curve": null,
-      "previous_key_id": null
+      "previous_key_id": "2d763eea-8755-45b8-ba3b-f9e45bb3f341"
     },
     "eddsa": {
       "algorithm": "EdDSA",
       "key_size": 256,
-      "key_id": "df6ad70a-74ae-48a0-85f7-9e21039aed42",
+      "key_id": "63e6ca13-0128-4b50-8446-80fdafe0cb61",
       "curve": "Ed25519",
-      "previous_key_id": null
+      "previous_key_id": "df6ad70a-74ae-48a0-85f7-9e21039aed42"
     }
-  }
+  },
+  "rotation_count": 1
 }

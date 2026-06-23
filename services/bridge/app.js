@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const crypto = require('crypto');
 const replayHooks = require('../observability/replay_hooks');
+const jtiStore = require('../replay_persistence/jti_store');
 require('dotenv').config();
 
 const app = express();
@@ -27,17 +28,23 @@ let jwksCache = null;
 let jwksCacheExpiry = 0;
 const JWKS_CACHE_TTL_MS = parseInt(process.env.JWKS_CACHE_TTL_MS) || 300000;
 
-const replayCache = new Map();
 const REPLAY_TTL_MS = 3600000;
 
 setInterval(() => {
+  const records = require('../replay_persistence/append_only_store').getAllRecords();
   const now = Date.now();
-  for (const [jti, timestamp] of replayCache.entries()) {
-    if (now - timestamp > REPLAY_TTL_MS) {
-      replayCache.delete(jti);
+  let expired = 0;
+  for (const record of records) {
+    if (record.event_type === 'jti_used' && record.payload && record.payload.jti) {
+      const age = now - new Date(record.timestamp).getTime();
+      if (age > REPLAY_TTL_MS) {
+        expired++;
+      }
     }
   }
 }, 60000);
+
+const jtiCacheSize = jtiStore.cacheSize;
 
 async function fetchJwks() {
   const now = Date.now();
@@ -142,13 +149,13 @@ const validateToken = async (req, res, next) => {
       return res.status(401).json({ error: 'Unauthorized: Missing jti claim' });
     }
 
-    if (replayCache.has(decoded.jti)) {
+    if (jtiStore.hasJti(decoded.jti)) {
       log(decoded.trace_id, decoded.execution_id, 'bridge', 'error', `Replay attack detected - jti: ${decoded.jti}`);
       replayHooks.hookRejection(decoded.trace_id, decoded.execution_id, 'replay_detected');
       return res.status(401).json({ error: 'Unauthorized: Token replay detected' });
     }
 
-    replayCache.set(decoded.jti, Date.now());
+    jtiStore.recordJti({ trace_id: decoded.trace_id, execution_id: decoded.execution_id, jti: decoded.jti });
 
     req.tokenData = decoded;
     req.trace_id = decoded.trace_id;

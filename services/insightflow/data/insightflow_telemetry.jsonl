@@ -1,0 +1,2 @@
+{"received_at":"2026-06-20T10:29:07.910Z"}
+{"timestamp":"2026-06-22T15:34:33.5828246+05:30","event_type":"execution_transition","source":"tantra-bridge","payload":{"passive":true,"workload":"acceptance-test"},"trace_id":"acceptance-test-trace-0001","status":"completed","execution_id":"acceptance-test-exec-0001","received_at":"2026-06-22T10:04:33.676Z"}

@@ -21,46 +21,46 @@ const PORT = process.env.PORT || 3000;
 const SARATHI_URL = process.env.SARATHI_URL || 'http://localhost:3001';
 const BRIDGE_URL = process.env.BRIDGE_URL || 'http://localhost:3002';
 
-// Health endpoint
 app.get('/health', (req, res) => {
   res.json({ service: 'core', status: 'healthy' });
 });
 
-// Initiate workflow
 app.post('/initiate', async (req, res) => {
-  // Generate immutable trace_id and execution_id
   const trace_id = crypto.randomUUID();
   const execution_id = crypto.randomUUID();
-  
-  log(trace_id, execution_id, 'core', 'info', 'Workflow initiated');
+  const cet_hash = crypto.createHash('sha256').update(trace_id + ':' + execution_id).digest('hex');
+
+  log(trace_id, execution_id, 'core', 'info', `Workflow initiated, cet_hash: ${cet_hash}`);
 
   try {
-    // Step 1: Get token from Sarathi Authority
     log(trace_id, execution_id, 'core', 'info', 'Requesting token from Sarathi');
-    
+
     const tokenResponse = await axios.post(
       `${SARATHI_URL}/token`,
-      { trace_id, execution_id },
+      { trace_id, execution_id, cet_hash },
       { timeout: 5000 }
     );
 
     const { token } = tokenResponse.data;
-    log(trace_id, execution_id, 'core', 'info', 'Token received from Sarathi');
+    log(trace_id, execution_id, 'core', 'info', `Token received from Sarathi (algorithm: ${tokenResponse.data.algorithm || 'unknown'})`);
 
-    // Step 2: Forward to Bridge with token
     log(trace_id, execution_id, 'core', 'info', 'Forwarding to Bridge');
-    
+
     const bridgeResponse = await axios.post(
       `${BRIDGE_URL}/execute`,
-      { 
+      {
         ...req.body,
         trace_id,
-        execution_id
+        execution_id,
+        cet_hash
       },
       {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Sarathi-Trace-Id': trace_id,
+          'X-Sarathi-Execution-Id': execution_id,
+          'X-Sarathi-Cet-Hash': cet_hash
         },
         timeout: 10000
       }
@@ -70,25 +70,27 @@ app.post('/initiate', async (req, res) => {
     res.json({
       trace_id,
       execution_id,
+      cet_hash,
       status: 'completed',
       result: bridgeResponse.data
     });
   } catch (err) {
-    // HARD FAIL: If any dependency fails, system stops immediately
     log(trace_id, execution_id, 'core', 'error', `Workflow failed: ${err.message}`);
-    
+
     if (err.response) {
       return res.status(err.response.status).json({
         ...err.response.data,
         trace_id,
-        execution_id
+        execution_id,
+        cet_hash
       });
     }
-    
-    return res.status(503).json({ 
+
+    return res.status(503).json({
       error: 'System stopped: dependency unavailable',
       trace_id,
-      execution_id
+      execution_id,
+      cet_hash
     });
   }
 });

@@ -3,12 +3,12 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const keyPersistence = require('./key_persistence');
 require('dotenv').config();
 
 const app = express();
 app.use(express.json());
 
-// Structured logging
 const log = (trace_id, execution_id, service_name, status, message) => {
   console.log(JSON.stringify({
     timestamp: new Date().toISOString(),
@@ -20,11 +20,9 @@ const log = (trace_id, execution_id, service_name, status, message) => {
   }));
 };
 
-// Replay protection: Track used jti claims with TTL
-const tokenCache = new Map(); // jti -> expiry timestamp
-const REPLAY_TTL_MS = 3600000; // 1 hour default (matches JWT expiry)
+const tokenCache = new Map();
+const REPLAY_TTL_MS = 3600000;
 
-// Clean up expired entries periodically
 setInterval(() => {
   const now = Date.now();
   for (const [jti, expiry] of tokenCache.entries()) {
@@ -32,71 +30,125 @@ setInterval(() => {
       tokenCache.delete(jti);
     }
   }
-}, 60000); // Clean every minute
+}, 60000);
 
-// Generate RSA key pair if not provided
-let PRIVATE_KEY = process.env.PRIVATE_KEY;
-let PUBLIC_KEY = process.env.PUBLIC_KEY;
+const keys = keyPersistence.loadOrGenerateKeys();
+const RSA_PRIVATE_KEY = keys.rsa.privateKey;
+const ED25519_PRIVATE_KEY = keys.ed25519.privateKey;
+const KEY_META = keys.meta;
 
-if (!PRIVATE_KEY || !PUBLIC_KEY) {
-  const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
-    modulusLength: 2048,
-    publicKeyEncoding: { type: 'spki', format: 'pem' },
-    privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
-  });
-  PRIVATE_KEY = privateKey;
-  PUBLIC_KEY = publicKey;
-  log(null, null, 'sarathi', 'info', 'Generated new RSA key pair');
-}
+const rsaKid = KEY_META.algorithms.rs256.key_id;
+const ed25519Kid = KEY_META.algorithms.eddsa.key_id;
+
+log(null, null, 'sarathi', 'info', keys.generated ? 'Generated new RSA + Ed25519 key pairs' : 'Loaded existing RSA + Ed25519 key pairs');
+log(null, null, 'sarathi', 'info', `RSA KID: ${rsaKid}, Ed25519 KID: ${ed25519Kid}`);
 
 const ISSUER = process.env.ISSUER || 'tantra-sarathi';
 const PORT = process.env.PORT || 3001;
 
-// Health endpoint
+function base64urlEncode(buf) {
+  return Buffer.from(buf).toString('base64url');
+}
+
+function base64urlDecode(str) {
+  return Buffer.from(str, 'base64url').toString();
+}
+
+function signEdDSAToken(claims, keyid) {
+  const header = { alg: 'EdDSA', kid: keyid, typ: 'JWT' };
+  const headerB64 = base64urlEncode(JSON.stringify(header));
+  const payloadB64 = base64urlEncode(JSON.stringify(claims));
+  const signingInput = headerB64 + '.' + payloadB64;
+
+  const privateKey = crypto.createPrivateKey(ED25519_PRIVATE_KEY);
+  const signature = crypto.sign(null, Buffer.from(signingInput), privateKey);
+
+  return signingInput + '.' + base64urlEncode(signature);
+}
+
+function generateRsaJwk() {
+  const publicKeyObj = crypto.createPublicKey(RSA_PRIVATE_KEY);
+  const jwk = publicKeyObj.export({ format: 'jwk' });
+  jwk.alg = 'RS256';
+  jwk.kid = rsaKid;
+  jwk.use = 'sig';
+  return jwk;
+}
+
+function generateEd25519Jwk() {
+  const publicKeyObj = crypto.createPublicKey(ED25519_PRIVATE_KEY);
+  const jwk = publicKeyObj.export({ format: 'jwk' });
+  jwk.alg = 'EdDSA';
+  jwk.kid = ed25519Kid;
+  jwk.use = 'sig';
+  return jwk;
+}
+
 app.get('/health', (req, res) => {
-  res.json({ service: 'sarathi', status: 'healthy', issuer: ISSUER });
+  res.json({ service: 'sarathi', status: 'healthy', issuer: ISSUER, algorithms: ['RS256', 'EdDSA'] });
 });
 
-// Token generation - ONLY place tokens are created
 app.post('/token', (req, res) => {
-  const { trace_id, execution_id } = req.body;
-  
-  // STRICT: trace_id and execution_id must be provided and immutable
+  const { trace_id, execution_id, cet_hash } = req.body;
+  const algo = req.body.algorithm || 'EdDSA';
+
   if (!trace_id || !execution_id) {
     log(trace_id, execution_id, 'sarathi', 'error', 'Missing trace_id or execution_id');
     return res.status(400).json({ error: 'trace_id and execution_id required' });
   }
 
-  // Generate unique jti for replay protection
   const jti = crypto.randomUUID();
   const expiryMs = Date.now() + (parseInt(process.env.JWT_EXPIRY_MS) || 3600000);
 
-  const token = jwt.sign(
-    { 
-      trace_id, 
-      execution_id,
-      iss: ISSUER,
-      aud: 'tantra-bridge',
-      jti,
-      iat: Math.floor(Date.now() / 1000)
-    },
-    PRIVATE_KEY,
-    { 
+  const iat = Math.floor(Date.now() / 1000);
+  const exp = iat + (parseInt(process.env.JWT_EXPIRY_MS) || 3600000) / 1000;
+
+  const claims = {
+    trace_id,
+    execution_id,
+    iss: ISSUER,
+    aud: 'tantra-bridge',
+    jti,
+    iat,
+    exp
+  };
+
+  if (cet_hash) {
+    claims.cet_hash = cet_hash;
+  }
+
+  if (algo === 'RS256') {
+    const token = jwt.sign(claims, RSA_PRIVATE_KEY, {
       algorithm: 'RS256',
+      keyid: rsaKid,
       expiresIn: process.env.JWT_EXPIRY || '1h'
-    }
-  );
+    });
+    tokenCache.set(jti, expiryMs);
+    log(trace_id, execution_id, 'sarathi', 'success', `RS256 token issued with jti: ${jti}`);
+    return res.json({ token, trace_id, execution_id, jti, algorithm: 'RS256' });
+  }
 
-  // Store jti with expiry for replay detection
+  const token = signEdDSAToken(claims, ed25519Kid);
   tokenCache.set(jti, expiryMs);
-
-  log(trace_id, execution_id, 'sarathi', 'success', `Token issued with jti: ${jti}`);
-  res.json({ token, trace_id, execution_id, jti });
+  log(trace_id, execution_id, 'sarathi', 'success', `EdDSA token issued with jti: ${jti}`);
+  res.json({ token, trace_id, execution_id, jti, algorithm: 'EdDSA' });
 });
 
-// Public key endpoint - for verification by other services
 app.get('/public-key', (req, res) => {
-  res.json({ public_key: PUBLIC_KEY });
+  const publicKeyObj = crypto.createPublicKey(RSA_PRIVATE_KEY);
+  res.json({ public_key: publicKeyObj.export({ format: 'pem', type: 'spki' }) });
+});
+
+app.get('/jwks', (req, res) => {
+  const rsaJwk = generateRsaJwk();
+  const ed25519Jwk = generateEd25519Jwk();
+  res.json({ keys: [ed25519Jwk, rsaJwk] });
+});
+
+app.get('/.well-known/jwks.json', (req, res) => {
+  const rsaJwk = generateRsaJwk();
+  const ed25519Jwk = generateEd25519Jwk();
+  res.json({ keys: [ed25519Jwk, rsaJwk] });
 });
 
 app.listen(PORT, () => {

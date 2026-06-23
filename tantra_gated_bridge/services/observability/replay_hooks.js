@@ -1,5 +1,15 @@
 const telemetry = require('./telemetry_emitter');
 const trace = require('./trace_collector');
+const insightflow = require('../insightflow/adapter');
+
+function insightflowForward(fn) {
+  try {
+    const result = fn();
+    if (result && typeof result.then === 'function') {
+      result.catch(() => {});
+    }
+  } catch (e) { /* passive */ }
+}
 
 function hookExecutionRequest(req, res, next) {
   const traceId = req.trace_id || req.body?.trace_id;
@@ -42,6 +52,15 @@ function hookExecutionResponse(traceId, executionId, status, details) {
     event_type: 'response_sent',
     status,
     payload: details
+  }));
+  insightflowForward(() => insightflow.forward({
+    source: 'tantra-bridge',
+    trace_id: traceId,
+    execution_id: executionId,
+    event_type: 'response_sent',
+    status,
+    payload: { passive: true, ...details },
+    timestamp: new Date().toISOString()
   }));
 }
 

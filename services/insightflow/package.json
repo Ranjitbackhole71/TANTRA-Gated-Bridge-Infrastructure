@@ -1,8 +1,13 @@
 {
-  "name": "insightflow",
+  "name": "tantra-insightflow-local",
   "version": "1.0.0",
-  "private": true,
-  "description": "InsightFlow integration contract, adapter, and proof harness",
-  "main": "adapter.js",
-  "dependencies": {}
+  "description": "TANTRA InsightFlow - Local Operational Receiver",
+  "main": "local_receiver.js",
+  "scripts": {
+    "start": "node local_receiver.js",
+    "test": "node readiness_check.js"
+  },
+  "dependencies": {
+    "express": "^4.22.2"
+  }
 }
