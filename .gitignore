@@ -49,3 +49,13 @@ temp/
 
 # Proof artifacts (generated)
 proof/
+
+# TANTRA sensitive files
+services/sarathi/keys/
+services/execution/outputs/
+services/insightflow/stderr.txt
+services/insightflow/stdout.txt
+services/**/data/
+execution_artifacts/
+integration.jsonl
+heartbeat.json

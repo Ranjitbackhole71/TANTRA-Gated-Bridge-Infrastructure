@@ -8,3 +8,7 @@ services/survivability_tests/proof/
 logs/
 .DS_Store
 *.pid
+services/sarathi/keys/
+services/execution/outputs/
+services/insightflow/stderr.txt
+services/insightflow/stdout.txt
