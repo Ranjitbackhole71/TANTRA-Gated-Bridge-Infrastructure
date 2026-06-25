@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const axios = require('axios');
 const path = require('path');
-const replayHooks = require('../observability/replay_hooks');
+const replayHooks = require('./lib/replay_hooks');
 require('dotenv').config();
 
 const app = express();
