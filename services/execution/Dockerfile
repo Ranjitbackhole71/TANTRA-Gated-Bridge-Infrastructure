@@ -1,7 +1,10 @@
 FROM node:18-alpine
+RUN apk add --no-cache curl
 WORKDIR /app
-COPY package*.json ./
+COPY execution/package*.json ./
 RUN npm install --production
-COPY . .
-EXPOSE 10000
+COPY execution/ .
+COPY observability/ ./observability/
+COPY replay_persistence/ ./replay_persistence/
+EXPOSE 3003
 CMD ["node", "app.js"]

@@ -1,0 +1,9 @@
+node_modules
+.git
+*.log
+*.err
+*.out
+.env
+.env.*
+logs/
+**/node_modules

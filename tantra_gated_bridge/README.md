@@ -1,5 +1,7 @@
 # TANTRA Gated Bridge
 
+> **⚠️ FROZEN SNAPSHOT**: This directory is a historical snapshot of the TANTRA platform. The canonical, production-ready implementation is in the repository root `services/` directory. Do not modify files here — use `services/` for all development.
+
 Zero-trust, hard-fail execution pipeline with append-only replay survivability.
 
 ```

@@ -1,0 +1,184 @@
+# AIAIC Platform Runtime - Docker Compose Configuration
+# Production-ready multi-service deployment
+
+services:
+  # Redis (Caching & Message Queue)
+  redis:
+    image: redis:7-alpine
+    container_name: aiaic-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - aiaic-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # TANTRA Core Service
+  tantra-core:
+    build:
+      context: ./services
+      dockerfile: core/Dockerfile
+    container_name: aiaic-tantra-core
+    ports:
+      - "${TANTRA_CORE_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=${AIAIC_ENV:-development}
+      - PORT=3000
+      - SARATHI_URL=http://tantra-sarathi:3001
+      - BRIDGE_URL=http://tantra-bridge:3002
+    networks:
+      - aiaic-network
+    depends_on:
+      - tantra-sarathi
+      - tantra-bridge
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # TANTRA Sarathi Service
+  tantra-sarathi:
+    build:
+      context: ./services
+      dockerfile: sarathi/Dockerfile
+    container_name: aiaic-tantra-sarathi
+    ports:
+      - "${TANTRA_SARATHI_PORT:-3001}:3001"
+    environment:
+      - NODE_ENV=${AIAIC_ENV:-development}
+      - PORT=3001
+      - ISSUER=tantra-sarathi
+    volumes:
+      - sarathi-keys:/app/keys
+    networks:
+      - aiaic-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # TANTRA Bridge Service
+  tantra-bridge:
+    build:
+      context: ./services
+      dockerfile: bridge/Dockerfile
+    container_name: aiaic-tantra-bridge
+    ports:
+      - "${TANTRA_BRIDGE_PORT:-3002}:3002"
+    environment:
+      - NODE_ENV=${AIAIC_ENV:-development}
+      - PORT=3002
+      - SARATHI_URL=http://tantra-sarathi:3001
+      - EXECUTION_URL=http://tantra-execution:3003
+    networks:
+      - aiaic-network
+    depends_on:
+      - tantra-sarathi
+      - tantra-execution
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # TANTRA Execution Service
+  tantra-execution:
+    build:
+      context: ./services
+      dockerfile: execution/Dockerfile
+    container_name: aiaic-tantra-execution
+    ports:
+      - "${TANTRA_EXECUTION_PORT:-3003}:3003"
+    environment:
+      - NODE_ENV=${AIAIC_ENV:-development}
+      - PORT=3003
+      - SARATHI_URL=http://tantra-sarathi:3001
+      - BUCKET_URL=http://tantra-bucket:3004
+    networks:
+      - aiaic-network
+    depends_on:
+      - tantra-sarathi
+      - tantra-bucket
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # TANTRA Bucket Service
+  tantra-bucket:
+    build:
+      context: ./services
+      dockerfile: bucket/Dockerfile
+    container_name: aiaic-tantra-bucket
+    ports:
+      - "${TANTRA_BUCKET_PORT:-3004}:3004"
+    environment:
+      - NODE_ENV=${AIAIC_ENV:-development}
+      - PORT=3004
+    volumes:
+      - bucket-data:/app/data
+    networks:
+      - aiaic-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # TANTRA InsightFlow Local Receiver
+  tantra-insightflow:
+    build:
+      context: ./services
+      dockerfile: insightflow/Dockerfile
+    container_name: aiaic-tantra-insightflow
+    ports:
+      - "${INSIGHTFLOW_PORT:-3005}:3005"
+    environment:
+      - NODE_ENV=${AIAIC_ENV:-development}
+      - INSIGHTFLOW_PORT=3005
+      - INSIGHTFLOW_DATA_DIR=/app/data
+    volumes:
+      - insightflow-data:/app/data
+    networks:
+      - aiaic-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3005/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+    driver: local
+  sarathi-keys:
+    driver: local
+  bucket-data:
+    driver: local
+  insightflow-data:
+    driver: local
+
+networks:
+  aiaic-network:
+    driver: bridge
+    name: aiaic-network

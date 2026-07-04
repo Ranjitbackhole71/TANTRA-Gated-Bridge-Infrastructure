@@ -69,21 +69,28 @@ if ($Mode -eq "docker") {
   
   Set-Location "$PSScriptRoot\..\services"
   
+  $pidFile = "$PSScriptRoot\..\tantra.pids"
+  if (Test-Path $pidFile) { Remove-Item $pidFile -Force }
+  
   Write-Host "Starting services..."
   
-  $jobs = @()
+  $services = @(
+    @{ name = "core"; dir = "core"; port = 3000 },
+    @{ name = "sarathi"; dir = "sarathi"; port = 3001 },
+    @{ name = "bridge"; dir = "bridge"; port = 3002 },
+    @{ name = "execution"; dir = "execution"; port = 3003 },
+    @{ name = "bucket"; dir = "bucket"; port = 3004 }
+  )
   
-  $jobs += Start-Job -ScriptBlock { Set-Location "$using:PSScriptRoot\..\services\core"; node app.js }
-  Start-Sleep -Milliseconds 500
-  $jobs += Start-Job -ScriptBlock { Set-Location "$using:PSScriptRoot\..\services\sarathi"; node app.js }
-  Start-Sleep -Milliseconds 500
-  $jobs += Start-Job -ScriptBlock { Set-Location "$using:PSScriptRoot\..\services\bridge"; node app.js }
-  Start-Sleep -Milliseconds 500
-  $jobs += Start-Job -ScriptBlock { Set-Location "$using:PSScriptRoot\..\services\execution"; node app.js }
-  Start-Sleep -Milliseconds 500
-  $jobs += Start-Job -ScriptBlock { Set-Location "$using:PSScriptRoot\..\services\bucket"; node app.js }
+  foreach ($svc in $services) {
+    Write-Host "  Starting $($svc.name)..."
+    $proc = Start-Process -FilePath "node" -ArgumentList "app.js" -WorkingDirectory "$PSScriptRoot\..\services\$($svc.dir)" -PassThru -NoNewWindow
+    Add-Content -Path $pidFile -Value $proc.Id
+    Start-Sleep -Milliseconds 500
+  }
   
   Write-Host ""
+  Write-Host "PIDs written to: $pidFile"
   Write-Host "Waiting for services to be ready..."
   Start-Sleep -Seconds 3
   
@@ -101,6 +108,6 @@ if ($Mode -eq "docker") {
   Write-Host ""
   Write-Host "========================================"
   Write-Host "  All services started (native mode)"
-  Write-Host "  Background jobs: $($jobs.Count)"
+  Write-Host "  Stop with: .\scripts\stop.ps1 -Mode native"
   Write-Host "========================================"
 }

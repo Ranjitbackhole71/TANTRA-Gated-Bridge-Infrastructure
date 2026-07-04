@@ -30,22 +30,6 @@ const JWKS_CACHE_TTL_MS = parseInt(process.env.JWKS_CACHE_TTL_MS) || 300000;
 
 const REPLAY_TTL_MS = 3600000;
 
-setInterval(() => {
-  const records = require('../replay_persistence/append_only_store').getAllRecords();
-  const now = Date.now();
-  let expired = 0;
-  for (const record of records) {
-    if (record.event_type === 'jti_used' && record.payload && record.payload.jti) {
-      const age = now - new Date(record.timestamp).getTime();
-      if (age > REPLAY_TTL_MS) {
-        expired++;
-      }
-    }
-  }
-}, 60000);
-
-const jtiCacheSize = jtiStore.cacheSize;
-
 async function fetchJwks() {
   const now = Date.now();
   if (jwksCache && now < jwksCacheExpiry) {
@@ -271,6 +255,21 @@ app.post('/execute', validateToken, enforceContinuity, async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   log(null, null, 'bridge', 'info', `Bridge Service running on port ${PORT}`);
 });
+
+function gracefulShutdown(signal) {
+  log(null, null, 'bridge', 'info', `Received ${signal}, shutting down gracefully`);
+  server.close(() => {
+    log(null, null, 'bridge', 'info', 'Server closed');
+    process.exit(0);
+  });
+  setTimeout(() => {
+    log(null, null, 'bridge', 'warn', 'Forced shutdown after timeout');
+    process.exit(1);
+  }, 5000);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

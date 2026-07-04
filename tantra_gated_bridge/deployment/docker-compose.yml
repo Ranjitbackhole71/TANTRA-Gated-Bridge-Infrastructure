@@ -83,8 +83,24 @@ services:
       - tantra-network
     restart: unless-stopped
 
+  insightflow:
+    build:
+      context: ../services
+      dockerfile: insightflow/Dockerfile
+    ports:
+      - "${INSIGHTFLOW_PORT:-3005}:3005"
+    environment:
+      - INSIGHTFLOW_PORT=3005
+      - INSIGHTFLOW_DATA_DIR=/app/data
+    volumes:
+      - insightflow-data:/app/data
+    networks:
+      - tantra-network
+    restart: unless-stopped
+
 volumes:
   bucket-data:
+  insightflow-data:
 
 networks:
   tantra-network:

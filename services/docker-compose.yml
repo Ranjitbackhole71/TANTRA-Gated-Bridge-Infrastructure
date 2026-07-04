@@ -1,8 +1,8 @@
-version: '3.8'
-
 services:
   core:
-    build: ./core
+    build:
+      context: .
+      dockerfile: core/Dockerfile
     ports:
       - "3000:3000"
     environment:
@@ -10,25 +10,43 @@ services:
       - SARATHI_URL=http://sarathi:3001
       - BRIDGE_URL=http://bridge:3002
     depends_on:
-      - sarathi
-      - bridge
+      sarathi:
+        condition: service_healthy
+      bridge:
+        condition: service_healthy
     networks:
       - tantra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
 
   sarathi:
-    build: ./sarathi
+    build:
+      context: .
+      dockerfile: sarathi/Dockerfile
     ports:
       - "3001:3001"
     environment:
       - PORT=3001
       - ISSUER=tantra-sarathi
     volumes:
-      - ./sarathi:/app
+      - sarathi-keys:/app/keys
     networks:
       - tantra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
 
   bridge:
-    build: ./bridge
+    build:
+      context: .
+      dockerfile: bridge/Dockerfile
     ports:
       - "3002:3002"
     environment:
@@ -36,13 +54,23 @@ services:
       - SARATHI_URL=http://sarathi:3001
       - EXECUTION_URL=http://execution:3003
     depends_on:
-      - sarathi
-      - execution
+      sarathi:
+        condition: service_healthy
+      execution:
+        condition: service_healthy
     networks:
       - tantra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
 
   execution:
-    build: ./execution
+    build:
+      context: .
+      dockerfile: execution/Dockerfile
     ports:
       - "3003:3003"
     environment:
@@ -50,21 +78,62 @@ services:
       - SARATHI_URL=http://sarathi:3001
       - BUCKET_URL=http://bucket:3004
     depends_on:
-      - sarathi
-      - bucket
+      sarathi:
+        condition: service_healthy
+      bucket:
+        condition: service_healthy
     networks:
       - tantra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
 
   bucket:
-    build: ./bucket
+    build:
+      context: .
+      dockerfile: bucket/Dockerfile
     ports:
       - "3004:3004"
     environment:
       - PORT=3004
     volumes:
-      - ./bucket/artifacts:/app/artifacts
+      - bucket-data:/app/data
     networks:
       - tantra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  insightflow:
+    build:
+      context: .
+      dockerfile: insightflow/Dockerfile
+    ports:
+      - "3005:3005"
+    environment:
+      - INSIGHTFLOW_PORT=3005
+      - INSIGHTFLOW_DATA_DIR=/app/data
+    volumes:
+      - insightflow-data:/app/data
+    networks:
+      - tantra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3005/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  sarathi-keys:
+  bucket-data:
+  insightflow-data:
 
 networks:
   tantra-network:

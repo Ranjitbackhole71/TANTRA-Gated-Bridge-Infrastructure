@@ -61,31 +61,41 @@ elif [ "$MODE" = "native" ] || [ "$MODE" = "n" ]; then
   
   cd "$(dirname "$0")/../services"
   
+  PID_FILE="$(dirname "$0")/../tantra.pids"
+  rm -f "$PID_FILE"
+  touch "$PID_FILE"
+  
   echo "Starting Core..."
   cd core && node app.js &
+  echo $! >> "$PID_FILE"
   cd ..
   
   sleep 1
   echo "Starting Sarathi..."
   cd sarathi && node app.js &
+  echo $! >> "$PID_FILE"
   cd ..
   
   sleep 1
   echo "Starting Bridge..."
   cd bridge && node app.js &
+  echo $! >> "$PID_FILE"
   cd ..
   
   sleep 1
   echo "Starting Execution..."
   cd execution && node app.js &
+  echo $! >> "$PID_FILE"
   cd ..
   
   sleep 1
   echo "Starting Bucket..."
   cd bucket && node app.js &
+  echo $! >> "$PID_FILE"
   cd ..
   
   echo ""
+  echo "PIDs written to: $PID_FILE"
   echo "Waiting for services to be ready..."
   sleep 3
   
@@ -99,6 +109,7 @@ elif [ "$MODE" = "native" ] || [ "$MODE" = "n" ]; then
   echo ""
   echo "========================================"
   echo "  All services started (native mode)"
+  echo "  Stop with: bash scripts/stop.sh native"
   echo "========================================"
   
 else

@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const axios = require('axios');
 const path = require('path');
-const replayHooks = require('./lib/replay_hooks');
+const replayHooks = require('../observability/replay_hooks');
 require('dotenv').config();
 
 const app = express();
@@ -218,18 +218,25 @@ async function executeWorkload(workload, trace_id, execution_id) {
       throw err;
     }
   }
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        workload: workload || 'default-task',
-        output: `Processed ${workload || 'default-task'}`,
-        trace_id,
-        execution_id
-      });
-    }, 100);
-  });
+  const defaultParticipant = require('./execution_participant');
+  return defaultParticipant.executeWorkload(workload, trace_id, execution_id);
 }
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   log(null, null, 'execution', 'info', `Execution Service running on port ${PORT}`);
 });
+
+function gracefulShutdown(signal) {
+  log(null, null, 'execution', 'info', `Received ${signal}, shutting down gracefully`);
+  server.close(() => {
+    log(null, null, 'execution', 'info', 'Server closed');
+    process.exit(0);
+  });
+  setTimeout(() => {
+    log(null, null, 'execution', 'warn', 'Forced shutdown after timeout');
+    process.exit(1);
+  }, 5000);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

@@ -1,7 +1,8 @@
 FROM node:18-alpine
+RUN apk add --no-cache curl
 WORKDIR /app
-COPY package*.json ./
+COPY sarathi/package*.json ./
 RUN npm install --production
-COPY . .
+COPY sarathi/ .
 EXPOSE 3001
 CMD ["node", "app.js"]

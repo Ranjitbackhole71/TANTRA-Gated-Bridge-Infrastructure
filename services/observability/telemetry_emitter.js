@@ -1,5 +1,14 @@
 const store = require('../replay_persistence/append_only_store');
 
+let insightflowAdapter = null;
+try {
+  if (process.env.INSIGHTFLOW_ENABLED === 'true') {
+    insightflowAdapter = require('../insightflow/adapter');
+  }
+} catch (e) {
+  // InsightFlow adapter not available — passive telemetry only
+}
+
 function emitExecutionTelemetry(opts) {
   const { trace_id, execution_id, parent_execution_id, service, event_type, status, payload } = opts;
   const record = store.appendRecord({
@@ -15,6 +24,19 @@ function emitExecutionTelemetry(opts) {
       ...payload
     }
   });
+
+  if (insightflowAdapter && insightflowAdapter.isEnabled()) {
+    insightflowAdapter.forward({
+      source: service || 'tantra',
+      trace_id,
+      execution_id,
+      event_type: `telemetry:${event_type}`,
+      status,
+      payload: { passive: true, ...payload },
+      timestamp: new Date().toISOString()
+    }).catch(() => {});
+  }
+
   return record;
 }
 

@@ -95,6 +95,21 @@ app.post('/initiate', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   log(null, null, 'core', 'info', `Core Service running on port ${PORT}`);
 });
+
+function gracefulShutdown(signal) {
+  log(null, null, 'core', 'info', `Received ${signal}, shutting down gracefully`);
+  server.close(() => {
+    log(null, null, 'core', 'info', 'Server closed');
+    process.exit(0);
+  });
+  setTimeout(() => {
+    log(null, null, 'core', 'warn', 'Forced shutdown after timeout');
+    process.exit(1);
+  }, 5000);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

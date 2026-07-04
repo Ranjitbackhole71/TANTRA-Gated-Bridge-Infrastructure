@@ -1,7 +1,8 @@
 FROM node:18-alpine
+RUN apk add --no-cache curl
 WORKDIR /app
-COPY package*.json ./
+COPY bucket/package*.json ./
 RUN npm install --production
-COPY . .
+COPY bucket/ .
 EXPOSE 3004
 CMD ["node", "app.js"]

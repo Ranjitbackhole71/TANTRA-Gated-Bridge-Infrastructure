@@ -64,7 +64,47 @@ if ($script:traceId -and $script:executionId) {
 
 Write-Host ""
 
-# 4. Summary
+# 4. Replay Protection
+Write-Host "4. Replay Protection"
+Write-Host "--------------------"
+try {
+  $tokenBody = @{trace_id = "verify-replay"; execution_id = "verify-replay-e"} | ConvertTo-Json
+  $tokenResponse = Invoke-RestMethod -Uri "http://localhost:3001/token" -Method Post -Body $tokenBody -ContentType "application/json" -TimeoutSec 5
+  $token = $tokenResponse.token
+  
+  if ($token) {
+    # First use
+    $execBody = @{workload = "verify"; trace_id = "verify-replay"; execution_id = "verify-replay-e"} | ConvertTo-Json
+    $headers = @{Authorization = "Bearer $token"; "Content-Type" = "application/json"}
+    try {
+      $firstResponse = Invoke-WebRequest -Uri "http://localhost:3002/execute" -Method Post -Body $execBody -Headers $headers -TimeoutSec 5 -ErrorAction Stop
+      $firstCode = $firstResponse.StatusCode
+    } catch {
+      $firstCode = $_.Exception.Response.StatusCode.value__
+    }
+    
+    # Replay
+    try {
+      $replayResponse = Invoke-WebRequest -Uri "http://localhost:3002/execute" -Method Post -Body $execBody -Headers $headers -TimeoutSec 5 -ErrorAction Stop
+      $replayCode = $replayResponse.StatusCode
+    } catch {
+      $replayCode = $_.Exception.Response.StatusCode.value__
+    }
+    
+    $firstStatus = if ($firstCode -eq 200) { "✅" } else { "❌" }
+    $replayStatus = if ($replayCode -eq 401) { "✅" } else { "❌" }
+    Write-Host "  First use: HTTP $firstCode $firstStatus"
+    Write-Host "  Replay:    HTTP $replayCode $replayStatus"
+  } else {
+    Write-Host "  ❌ Could not generate token"
+  }
+} catch {
+  Write-Host "  ❌ Replay test failed: $_"
+}
+
+Write-Host ""
+
+# 5. Summary
 Write-Host "========================================"
 Write-Host "  VERIFICATION COMPLETE"
 Write-Host "========================================"

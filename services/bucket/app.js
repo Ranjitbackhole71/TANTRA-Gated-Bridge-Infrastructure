@@ -181,6 +181,22 @@ app.get('/retrieve/:trace_id/:execution_id', (req, res) => {
   res.json(artifact);
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   log(null, null, 'bucket', 'info', `Bucket Service running on port ${PORT}`);
 });
+
+function gracefulShutdown(signal) {
+  log(null, null, 'bucket', 'info', `Received ${signal}, shutting down gracefully`);
+  server.close(() => {
+    db.close();
+    log(null, null, 'bucket', 'info', 'Server closed, database closed');
+    process.exit(0);
+  });
+  setTimeout(() => {
+    log(null, null, 'bucket', 'warn', 'Forced shutdown after timeout');
+    process.exit(1);
+  }, 5000);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

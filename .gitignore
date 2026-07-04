@@ -10,13 +10,13 @@ yarn-error.log*
 .env.local
 .env.*.local
 
-# Runtime
+# Runtime logs
 *.log
 *.err
 *.out
 logs/
 
-# Database
+# Database files
 **/bucket.db
 **/bucket.db-wal
 **/bucket.db-shm
@@ -28,7 +28,7 @@ logs/
 *.swo
 *~
 
-# OS
+# OS files
 .DS_Store
 Thumbs.db
 Desktop.ini
@@ -41,8 +41,9 @@ __pycache__/
 dist/
 build/
 venv/
+.pytest_cache/
 
-# Temp
+# Temp files
 tmp/
 temp/
 *.tmp
@@ -59,3 +60,124 @@ services/**/data/
 execution_artifacts/
 integration.jsonl
 heartbeat.json
+
+# Docker volumes (local development)
+docker-compose.override.yml
+
+# Personal/system directories (repo is at home dir)
+.anaconda/
+.aws/
+.cache/
+.cline/
+.codeium/
+.cobra/
+.copilot/
+.condarc
+.conda/
+.config/
+.gitconfig
+.codex/
+.continuum/
+.qoder/
+.ssh/
+.streamlit/
+IntelGraphicsProfiles/
+.docker/
+.eclipse/
+.idlerc/
+.ipynb_checkpoints/
+.ipython/
+.jupyter/
+.lesshst
+.local/
+.p2/
+.pytest_cache/
+.qodo/
+.trae/
+.vscode-shared/
+anaconda3/
+app/
+AppData/
+config/
+Documents/
+Downloads/
+Favorites/
+IdeaProjects/
+JupyterNotebook/
+jupyter notebook/
+Links/
+Lists.py
+Music/
+My Documents/
+NetHood/
+OneDrive/
+PrintHood/
+PycharmProjects/
+Recent/
+Saved Games/
+Searches/
+SendTo/
+Start Menu/
+Templates/
+OOPs
+OOPs.py
+demo.ipynb
+library.ipynb
+
+# Python practice files (not project code)
+*.ipynb
+practice*.py
+strings.py
+while\ loop.py
+menu.py
+loops.py
+loop.py
+import\ numpy\ as\ np.py
+conditional*.py
+tuple.py
+untitled*.py
+Untitled*.ipynb
+python.txt
+
+# Misc non-project files
+*.dat
+*.regtrans-ms
+*.blf
+*.ini
+Rave.dat
+NTUSER.DAT*
+ntuser.*
+update.json
+sample_responses/
+
+# Additional non-project files
+Prime\ batch.py
+Project
+Primary_Bucket_Owner/
+Task-Review-Agent-Full-Product-Evolution/
+Task-Review-Agent-Full-Project-Evolution/
+ai-being-enforcement/
+aiaic-platform-runtime/
+runtime/
+gateway/
+observability/
+operations/
+services/logs/
+tests/__pycache__/
+tests/platform_tests/__pycache__/
+tests/platform_tests/__init__.py
+verify_bridge.js
+verify_test.js
+update.json
+docker-entrypoint.sh
+Dockerfile
+conditonal\ statements\ problems.py
+eclipse-workspace/
+eclipse/
+functions\ in\ python.py
+loop\ practice.py
+notepad\ Dockerfile.txt
+package-lock.json
+practice\ code/
+revise.py
+

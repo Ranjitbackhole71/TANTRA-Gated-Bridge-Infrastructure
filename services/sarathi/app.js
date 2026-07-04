@@ -23,7 +23,7 @@ const log = (trace_id, execution_id, service_name, status, message) => {
 const tokenCache = new Map();
 const REPLAY_TTL_MS = 3600000;
 
-setInterval(() => {
+const tokenCleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [jti, expiry] of tokenCache.entries()) {
     if (expiry <= now) {
@@ -151,6 +151,22 @@ app.get('/.well-known/jwks.json', (req, res) => {
   res.json({ keys: [ed25519Jwk, rsaJwk] });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   log(null, null, 'sarathi', 'info', `Sarathi Authority Service running on port ${PORT}`);
 });
+
+function gracefulShutdown(signal) {
+  log(null, null, 'sarathi', 'info', `Received ${signal}, shutting down gracefully`);
+  clearInterval(tokenCleanupInterval);
+  server.close(() => {
+    log(null, null, 'sarathi', 'info', 'Server closed');
+    process.exit(0);
+  });
+  setTimeout(() => {
+    log(null, null, 'sarathi', 'warn', 'Forced shutdown after timeout');
+    process.exit(1);
+  }, 5000);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
