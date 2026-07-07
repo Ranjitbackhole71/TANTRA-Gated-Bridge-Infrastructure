@@ -72,11 +72,10 @@
 **Mituation:** Structured JSON logs with trace_id enable manual correlation.
 **Future:** Add OpenTelemetry SDK for distributed tracing.
 
-### 12. No Graceful Shutdown
-**Limitation:** Services do not implement graceful shutdown handlers.
-**Impact:** In-flight requests may be dropped during container stop.
-**Mitigation:** Short request durations minimize impact.
-**Future:** Handle SIGTERM signals for graceful connection draining.
+### 12. Graceful Shutdown Implemented
+**Status:** All services implement SIGTERM/SIGINT handlers for graceful shutdown.
+**Behavior:** Stop accepting new connections, complete in-flight requests, close database connections, exit cleanly within 5-second timeout.
+**Note:** This is a capability, not a limitation. Listed here for documentation completeness.
 
 ## Development Limitations
 

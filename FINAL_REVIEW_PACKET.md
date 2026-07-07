@@ -6,13 +6,15 @@
 ## System Topology
 ```
 Core (3000) → Sarathi (3001) → Bridge (3002) → Execution (3003) → Bucket (3004)
+                                                                    ↓
+                                                            InsightFlow (3005)
 ```
 
 ## Verified Claims
 
 | Claim | Status | How Verified |
 |-------|--------|-------------|
-| All 5 services running on separate ports | ✅ | Health endpoints respond on 3000-3004 |
+| All 6 services running on separate ports | ✅ | Health endpoints respond on 3000-3005 |
 | End-to-end workflow executes | ✅ | POST /initiate → 200 with trace + execution IDs |
 | trace_id immutable across all services | ✅ | Same UUID appears in Core, Sarathi, Bridge, Execution, Bucket |
 | execution_id immutable across all services | ✅ | Same UUID across all 5 services |
@@ -126,8 +128,8 @@ For production deployment, the `Primary_Bucket_Owner` reference implementation s
 ║  FINAL VERDICT: SYSTEM IS REAL AND VERIFIED              ║
 ╠══════════════════════════════════════════════════════════╣
 ║  Architecture: ✅ Implemented                            ║
-║  Services: ✅ Running (5/5)                              ║
-║  Security: ✅ JWT RS256, replay protection               ║
+║  Services: ✅ Running (6/6 including InsightFlow)        ║
+║  Security: ✅ JWT RS256+EdDSA, replay protection         ║
 ║  Storage: ✅ SQLite with read-after-write                ║
 ║  Scripts: ✅ 4 scripts, 3 tests                          ║
 ║  Documentation: ✅ 22+ files                             ║

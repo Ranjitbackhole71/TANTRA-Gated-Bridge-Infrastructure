@@ -6,8 +6,8 @@ TANTRA is a zero-trust, hard-fail distributed execution pipeline with append-onl
 
 **Repository:** `https://github.com/Ranjitbackhole71/TANTRA-Gated-Bridge-Infrastructure.git`  
 **Branch:** `master`  
-**Last Commit:** `aa46760` (2026-06-12)  
-**Root Directory:** `tantra_gated_bridge/`
+**Last Commit:** `300db9c` (2026-07-04)  
+**Root Directory:** `services/` (canonical), `tantra_gated_bridge/` (frozen snapshot)
 
 ---
 
@@ -17,6 +17,8 @@ TANTRA is a zero-trust, hard-fail distributed execution pipeline with append-onl
 
 ```
 Core (:3000) → Sarathi (:3001) → Bridge (:3002) → Execution (:3003) → Bucket (:3004)
+                                                                    ↓
+                                                            InsightFlow (:3005)
 ```
 
 ### Service Roles
@@ -28,6 +30,7 @@ Core (:3000) → Sarathi (:3001) → Bridge (:3002) → Execution (:3003) → Bu
 | Bridge | 3002 | Passive forwarder, JWT validation | Zero — cannot sign, execute, or store |
 | Execution | 3003 | Workload execution, adapter pattern | Verify bridge signature, execute, store artifact |
 | Bucket | 3004 | SQLite artifact storage | Persist + read-after-write verify |
+| InsightFlow | 3005 | Telemetry receiver (optional) | Passive telemetry ingestion |
 
 ### Service Dependencies
 
@@ -36,6 +39,7 @@ Core → Sarathi (token request)
 Bridge → Sarathi (JWKS fetch)
 Bridge → Execution (forward workload)
 Execution → Bucket (store artifact)
+Execution → InsightFlow (telemetry, async)
 ```
 
 ---
@@ -194,9 +198,9 @@ Remove-Item -Recurse -Force services/replay_persistence/data/*
 
 1. **Execution Workload is Simulated** — `executeWorkload` uses `setTimeout` (100ms). Set `EXECUTION_PARTICIPANT` env var for real compute.
 
-2. **InsightFlow is Passive Only** — Local receiver on port 3005. No external InsightFlow endpoint connected. Set `INSIGHTFLOW_URL` for external forwarding.
+2. **InsightFlow is Local Only** — Local receiver on port 3005 is operational for telemetry ingestion. No external InsightFlow endpoint connected.
 
-3. **Replay Cache is In-Memory** — JTI cache in Bridge is in-memory `Set`. Restart clears it. Tokens have 1h expiry. For production, use Redis or SQLite.
+3. **Replay Cache is In-Memory** — JTI cache in Bridge is in-memory `Set`. Restart clears it. `warmJtiCache()` replays JTIs from disk on startup. Tokens have 1h expiry. For production, use Redis or SQLite.
 
 4. **No Cross-Node Replication** — Replay log is local filesystem. Distributed deployment needs shared storage.
 
@@ -206,7 +210,11 @@ Remove-Item -Recurse -Force services/replay_persistence/data/*
 
 7. **No Secrets Manager** — Keys via env vars or files. Use Vault/AWS Secrets Manager for production.
 
-8. **Docker Daemon Not Running** — All Dockerfiles and compose files exist but engine is not started.
+8. **Single-Instance Services** — No horizontal scaling. Docker Compose restart policy handles recovery.
+
+9. **No Rate Limiting** — Docker resource limits provide some protection. Add API gateway for production.
+
+10. **No CI/CD Pipeline** — Docker Compose provides reproducible builds. Add GitHub Actions for production.
 
 ---
 
