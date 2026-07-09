@@ -2,11 +2,11 @@
 
 ## 1. System Overview
 
-TANTRA is a zero-trust, hard-fail distributed execution pipeline with append-only replay survivability. It routes workload execution through 5 microservices where each service has a narrowly scoped authority and zero trust of its neighbors.
+TANTRA is a zero-trust, hard-fail distributed execution pipeline with append-only replay survivability. It routes workload execution through 6 microservices where each service has a narrowly scoped authority and zero trust of its neighbors.
 
 **Repository:** `https://github.com/Ranjitbackhole71/TANTRA-Gated-Bridge-Infrastructure.git`  
 **Branch:** `master`  
-**Last Commit:** `300db9c` (2026-07-04)  
+**Last Verified:** 2026-07-09 — All 6 services live, 99/99 tests pass  
 **Root Directory:** `services/` (canonical), `tantra_gated_bridge/` (frozen snapshot)
 
 ---
