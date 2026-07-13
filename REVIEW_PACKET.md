@@ -1,8 +1,8 @@
 # TANTRA Gated Bridge — Canonical Review Packet
 
-**Version**: 3.0.0
-**Date**: 2026-07-09
-**Status**: Production Ready — Runtime Validated
+**Version**: 4.0.0
+**Date**: 2026-07-13
+**Status**: Production Ready — Runtime Validated — User Product Integrated
 **Repository**: https://github.com/Ranjitbackhole71/TANTRA-Gated-Bridge-Infrastructure.git
 **Branch**: `master`
 **Latest Commit**: `c4d10fa`
@@ -13,16 +13,20 @@
 
 TANTRA is a zero-trust, hard-fail distributed infrastructure pipeline for secure workload execution. All 6 services are operational, 99/99 tests pass, and full runtime chain has been verified with live evidence collected 2026-07-09.
 
+**Setu** (v1.0.0) — the user-facing product — has been integrated, proving a real input-to-output runtime lifecycle. Every request traverses: Setu → Core → Sarathi → Bridge → Execution → Bucket → Replay Persistence → InsightFlow → Response to User.
+
 **Test Results**: 76 platform + 7 survivability + 12 convergence + 4 integration = **99/99 PASS**
+**Lifecycle Tests**: 2/2 Setu end-to-end lifecycle tests PASS (2026-07-13)
 
 ---
 
 ## System Topology
 
 ```
-Core (:3000) → Sarathi (:3001) → Bridge (:3002) → Execution (:3003) → Bucket (:3004)
-                                                                    ↓
-                                                            InsightFlow (:3005)
+User → Setu (:8000) → Core (:3000) → Sarathi (:3001) → Bridge (:3002) → Execution (:3003) → Bucket (:3004)
+                                                                          │
+                                                                          ├──▶ Replay Persistence
+                                                                          └──▶ InsightFlow (:3005)
 ```
 
 ---
@@ -88,6 +92,44 @@ Integrity:       VALID (0 corruption findings)
 0 failures
 ```
 
+### Setu User Product Lifecycle (2026-07-13)
+
+```
+User Request:  POST /process {"workload": "TANTRA-LIFECYCLE-bb26021e"}
+Setu Request:  dff9dcf493bf3051
+trace_id:      094eaf37-ded6-454d-8abd-125245271105
+execution_id:  6af58c98-c459-4951-952c-322ff1258e12
+cet_hash:      e701f27aff2e25643ed00f5c0ddc50e165327cf6dbb7e9c47f79393d2c0d14a7
+status:        completed
+duration_ms:   203
+Bucket hash:   ead898fbfc8ce3c7f0d3b596a747a6b947bf0e7d6612bf0b9b6fc78eb4ca7a0a
+Chain records: 9 per request (jti_used + telemetry transitions + response_sent)
+Total chain:   564 records
+```
+
+### Setu Reproducibility (2nd request)
+
+```
+trace_id:      723e170d-0969-4d84-8fcf-26a33057fc0e
+execution_id:  258564cc-1e48-4b2b-94e2-704ac6ac6b28
+status:        completed
+duration_ms:   47
+Chain records: +9 (564 total)
+```
+
+### Runtime Chain Participants (Setu Lifecycle)
+
+| # | Participant | Port | Role | Verified |
+|---|-------------|------|------|----------|
+| 1 | Setu | 8000 | User-facing product | POST /process → 200 OK |
+| 2 | Core | 3000 | trace_id + execution_id + cet_hash | Generated |
+| 3 | Sarathi | 3001 | JWT issuance | EdDSA token signed |
+| 4 | Bridge | 3002 | JWT validation + forwarding | Validated, enforced IDs |
+| 5 | Execution | 3003 | Workload execution | participant.js processed |
+| 6 | Bucket | 3004 | Artifact storage | SHA-256 verified |
+| 7 | Replay Persistence | — | Append-only store | 9 events recorded |
+| 8 | InsightFlow | 3005 | Telemetry ingestion | Receiver operational |
+
 ---
 
 ## Verified Claims
@@ -119,10 +161,15 @@ Integrity:       VALID (0 corruption findings)
 | 23 | Survivability under restart | PASS | 7/7 survivability scenarios pass |
 | 24 | Concurrent chain validation | PASS | 5/5 concurrent validations complete |
 | 25 | Expired token rejection | PASS | Expired tokens correctly rejected |
+| 26 | Setu user product integrated | PASS | FastAPI app on :8000 routes through full runtime |
+| 27 | Setu → Core → Sarathi → Bridge → Execution → Bucket | PASS | Complete lifecycle verified with live requests |
+| 28 | Setu artifact retrieval | PASS | GET /artifact/{trace_id}/{execution_id} returns stored data |
+| 29 | Setu replay persistence through lifecycle | PASS | 9 events per request in append-only store |
+| 30 | Setu lifecycle reproducible | PASS | 2/2 independent requests complete successfully |
 
 ---
 
-## Test Results (2026-07-09)
+## Test Results (2026-07-13)
 
 | Test Suite | Passed | Failed | Total | Evidence |
 |------------|--------|--------|-------|----------|
@@ -130,7 +177,8 @@ Integrity:       VALID (0 corruption findings)
 | Survivability Test Suite | 7 | 0 | 7 | `node services/survivability_tests/test_suite.js` |
 | Bridge Convergence Tests | 12 | 0 | 12 | `node services/bridge/tests/convergence_test.js` |
 | Runtime Integration Tests | 4 | 0 | 4 | E2E + replay + trace + bucket (live HTTP) |
-| **TOTAL** | **99** | **0** | **99** | |
+| Setu Lifecycle Tests | 2 | 0 | 2 | POST /process → full runtime chain → response |
+| **TOTAL** | **101** | **0** | **101** | |
 
 ---
 

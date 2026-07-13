@@ -1,13 +1,14 @@
 # FINAL REVIEW PACKET — TANTRA Distributed Infrastructure
 
 ## Overview
-5-service distributed system with strict service boundaries, zero-trust enforcement, and no fallback paths.
+6-service distributed system with strict service boundaries, zero-trust enforcement, and no fallback paths. **Setu** (v1.0.0) user-facing product integrated, proving complete input-to-output runtime lifecycle.
 
 ## System Topology
 ```
-Core (3000) → Sarathi (3001) → Bridge (3002) → Execution (3003) → Bucket (3004)
-                                                                    ↓
-                                                            InsightFlow (3005)
+User → Setu (8000) → Core (3000) → Sarathi (3001) → Bridge (3002) → Execution (3003) → Bucket (3004)
+                                                                      │
+                                                                      ├──▶ Replay Persistence
+                                                                      └──▶ InsightFlow (3005)
 ```
 
 ## Verified Claims
@@ -15,6 +16,7 @@ Core (3000) → Sarathi (3001) → Bridge (3002) → Execution (3003) → Bucket
 | Claim | Status | How Verified |
 |-------|--------|-------------|
 | All 6 services running on separate ports | ✅ | Health endpoints respond on 3000-3005 |
+| Setu user product integrated | ✅ | POST /process routes through full runtime chain |
 | End-to-end workflow executes | ✅ | POST /initiate → 200 with trace + execution IDs |
 | trace_id immutable across all services | ✅ | Same UUID appears in Core, Sarathi, Bridge, Execution, Bucket |
 | execution_id immutable across all services | ✅ | Same UUID across all 5 services |
@@ -23,27 +25,37 @@ Core (3000) → Sarathi (3001) → Bridge (3002) → Execution (3003) → Bucket
 | ID mutation blocked | ✅ | Different trace_id in body → 400 "mutation forbidden" |
 | Bridge is passive | ✅ | grep shows zero forbidden patterns (jwt.sign, execute, fallback, etc.) |
 | Bucket persistence | ✅ | SQLite bucket.db with read-after-write, SHA-256 hash verification |
-| Failure propagation (no fallback) | ✅ | Invalid token → 401, Execution down → 503 | 
+| Failure propagation (no fallback) | ✅ | Invalid token → 401, Execution down → 503 |
+| Setu lifecycle reproducible | ✅ | 2/2 independent requests complete successfully |
+| Replay persistence through Setu | ✅ | 9 events per request in append-only store | 
 
 ## Deliverables Checklist
 
-### Executable Scripts (4)
+### Executable Scripts (5)
 - [x] `scripts/verify_services.sh`
 - [x] `scripts/demo_flow.sh`
 - [x] `scripts/master_verification.sh`
 - [x] `scripts/master_verification.bat`
+- [x] `scripts/setu_lifecycle_demo.sh`
 
 ### Automated Tests (3)
 - [x] `tests/replay_test.sh`
 - [x] `tests/trace_integrity_test.sh`
 - [x] `tests/bucket_persistence_test.sh`
 
-### Service Implementations (5)
+### User-Facing Product (1)
+- [x] `setu/app.py` — Setu: User-facing FastAPI product integrating with TANTRA runtime
+- [x] `setu/requirements.txt` — Python dependencies
+- [x] `setu/.env` — Configuration
+- [x] `SETU_INTEGRATION.md` — Integration documentation
+
+### Service Implementations (6)
 - [x] `services/core/app.js` — Entry point, workflow initiator
-- [x] `services/sarathi/app.js` — JWT authority (RS256 only)
+- [x] `services/sarathi/app.js` — JWT authority (RS256 + EdDSA)
 - [x] `services/bridge/app.js` — Passive forwarding only
 - [x] `services/execution/app.js` — Workload executor
 - [x] `services/bucket/app.js` — SQLite-backed storage
+- [x] `services/insightflow/local_receiver.js` — Telemetry ingestion
 
 ### Proof Documents (8)
 - [x] `services/REPLAY_PROOF.md` — Live replay attack validation
