@@ -37,17 +37,155 @@
 
 ## Architecture Walkthrough
 
-### 1. Request Flow
+### 1. Complete Request/Response Flow
 
 ```
-Client → Core(:3000) → Sarathi(:3001) → Bridge(:3002) → Execution(:3003) → Bucket(:3004)
+                         REQUEST PATH (Forward)
+                         ═══════════════════════
+User → Setu(:8000) → Core(:3000) → Sarathi(:3001) → Bridge(:3002) → Execution(:3003) → Bucket(:3004)
+                                                                          │
+                                                                          ├──▶ Replay Persistence
+                                                                          └──▶ InsightFlow(:3005)
+
+                         RESPONSE PATH (Return)
+                         ═══════════════════════
+Bucket(:3004) → Execution(:3003) → Bridge(:3002) → Core(:3000) → Setu(:8000) → User
+InsightFlow(:3005) → (telemetry recorded, async side-effect)
 ```
 
-**Core** (`services/core/app.js`):
-- Line 29: `crypto.randomUUID()` generates trace_id and execution_id
-- Line 31: cet_hash = SHA-256(trace_id:execution_id)
-- Line 38: POST to Sarathi /token with {trace_id, execution_id, cet_hash}
-- Line 49: POST to Bridge /execute with JWT Bearer token
+### 2. Complete Lifecycle Walkthrough
+
+#### Phase 1: Request Initiation
+```
+User → Setu(:8000)
+  POST /process {workload: "..."}
+  Setu assigns setu_request_id, timestamps request
+```
+
+#### Phase 2: Core Orchestration
+```
+Setu → Core(:3000)
+  POST /initiate {workload: "...", source: "setu", setu_request_id: "..."}
+  Core generates: trace_id, execution_id, cet_hash
+  Core requests JWT from Sarathi
+```
+
+#### Phase 3: JWT Authorization
+```
+Core → Sarathi(:3001)
+  POST /token {trace_id, execution_id, cet_hash}
+  Sarathi issues JWT (RS256 or EdDSA) with claims:
+    - trace_id, execution_id, cet_hash
+    - iss: "tantra-sarathi", aud: "tantra-bridge"
+    - jti, iat, exp
+```
+
+#### Phase 4: Bridge Transport
+```
+Core → Bridge(:3002)
+  POST /execute
+  Headers: Authorization: Bearer <jwt>
+  Body: {workload, trace_id, execution_id, cet_hash}
+  Bridge validates JWT:
+    - Signature (RS256/EdDSA)
+    - Issuer (tantra-sarathi)
+    - Audience (tantra-bridge)
+    - Replay detection (jti)
+    - ID immutability (trace_id, execution_id, cet_hash)
+```
+
+#### Phase 5: Workload Execution
+```
+Bridge → Execution(:3003)
+  POST /run
+  Body: {workload, trace_id, execution_id, bridge_signature}
+  Execution validates bridge signature
+  Execution runs workload
+```
+
+#### Phase 6: Artifact Storage
+```
+Execution → Bucket(:3004)
+  POST /store
+  Body: {trace_id, execution_id, result, timestamp, duration_ms}
+  Bucket stores artifact with:
+    - SHA-256 hash verification
+    - Read-after-write verification
+    - Schema validation
+```
+
+#### Phase 7: Response Return Path
+```
+Bucket(:3004) → Execution(:3003)
+  Returns: {location, trace_id, execution_id, hash, verified}
+
+Execution(:3003) → Bridge(:3002)
+  Returns: {trace_id, execution_id, status, result, artifact_location, duration_ms}
+
+Bridge(:3002) → Core(:3000)
+  Returns: execution response data
+
+Core(:3000) → Setu(:8000)
+  Returns: {trace_id, execution_id, cet_hash, status, result}
+
+Setu(:8000) → User
+  Returns: ProcessResponse {
+    status, trace_id, execution_id, cet_hash,
+    result, artifact_location, duration_ms,
+    runtime_chain, setu_request_id, timestamp
+  }
+```
+
+#### Phase 8: Telemetry (Async Side-Effect)
+```
+InsightFlow(:3005)
+  Receives telemetry events from:
+    - Bridge (via replay_hooks)
+    - Execution (via replay_hooks)
+  Events: execution_transition, rejection, dependency_failure
+  Stored in: data/insightflow_telemetry.jsonl
+```
+
+### Setu Integration
+
+**Setu** (`setu/app.py`):
+- FastAPI application serving as the user-facing product
+- Routes requests through the complete TANTRA runtime lifecycle
+- Returns full response with trace_id, execution_id, and runtime_chain
+
+**Setu Endpoints**:
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/process` | POST | Process user request through TANTRA runtime |
+| `/health` | GET | Health check with runtime connectivity |
+| `/artifact/{trace_id}/{execution_id}` | GET | Retrieve stored artifact from Bucket |
+| `/telemetry/{trace_id}` | GET | Retrieve InsightFlow telemetry |
+| `/telemetry` | GET | Get InsightFlow telemetry summary |
+| `/` | GET | API information |
+
+**Setu Request/Response**:
+```python
+# Request
+POST /process
+{
+    "workload": "task-name",
+    "metadata": {}  # optional
+}
+
+# Response
+{
+    "status": "completed",
+    "trace_id": "uuid",
+    "execution_id": "uuid",
+    "cet_hash": "sha256-hash",
+    "result": { ... },
+    "artifact_location": "artifacts/uuid/uuid",
+    "duration_ms": 203,
+    "runtime_chain": ["setu", "core", "sarathi", "bridge", "execution", "bucket", "replay_persistence", "insightflow"],
+    "setu_request_id": "16-char-hash",
+    "timestamp": "ISO-8601"
+}
+```
 
 **Sarathi** (`services/sarathi/app.js`):
 - Line 6: `keyPersistence.loadOrGenerateKeys()` loads or creates RSA + Ed25519 key pairs
