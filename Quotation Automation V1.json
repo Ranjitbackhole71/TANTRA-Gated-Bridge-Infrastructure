@@ -1,0 +1,499 @@
+{
+  "name": "Quotation Automation V1",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "q": "subject:\"Quotation Request - Multiple Services\""
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "id": "ae297c1f-7e89-416d-bdd9-397decf34800",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "UNjbvg3SHT2k5HZN",
+          "name": "Gmail account 5"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an AI assistant for Prophetic Business Solutions.\n\nExtract quotation details from the email.\n\nCRITICAL INSTRUCTIONS:\n\n1. Identify ALL services requested in the email.\n2. Return EVERY recognized service.\n3. Do NOT combine multiple services into one string.\n4. Return the services as a JSON array.\n5. Preserve the order in which they appear.\n\nReturn ONLY valid JSON.\n\n{\n  \"customer_name\": \"\",\n  \"company\": \"\",\n  \"services\": [],\n  \"turnover\": \"\",\n  \"requirements\": \"\"\n}\n\nExample:\n\n{\n  \"customer_name\": \"Akash Mehta\",\n  \"company\": \"TechNova Solutions Pvt Ltd\",\n  \"services\": [\n    \"CFO Services\",\n    \"GST Return Regular\",\n    \"ROC\"\n  ],\n  \"turnover\": \"12 Crore\",\n  \"requirements\": \"\"\n}\n\nEmail:\n{{ $('Gmail Trigger').item.json.textPlain || $('Gmail Trigger').item.json.snippet }}",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "c74a2554-8320-43ac-9e5b-437d30008a55",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        64,
+        208
+      ],
+      "id": "6e5295ce-78d5-4545-bffd-00523c961fbb",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "TaxXR7emL95k5gnW",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1gsq_6exab4ksawbI9d72d4VR2Kxb5b2h682TR3W_bgo/edit",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Services-Price_Code",
+          "mode": "name"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "={{ \"col_4\" }}",
+              "lookupValue": "={{ JSON.parse($('AI Agent').item.json.output).service }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        560,
+        0
+      ],
+      "id": "69adfe40-7072-42a7-9d27-cbe687bb7b9d",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "T6zYfP27W22m6P1A",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d018aa92-77cb-439e-b842-25926eb88d89",
+              "name": "quote_number",
+              "value": "={{\n$now.format(\"yyyy\") + \"/\" + (Number($now.format(\"yy\")) + 1) + \"-001\"\n}}",
+              "type": "string"
+            },
+            {
+              "id": "6b15d345-1fe3-4dd1-8671-3ed499b27b43",
+              "name": "quotation_date",
+              "value": "={{ $now.format(\"dd/MM/yyyy\") }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        976,
+        0
+      ],
+      "id": "e8ae6b02-0841-4bb4-9ea0-9ea85b894929",
+      "name": "Quotation Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all();\n\nconst aiOutput = JSON.parse($(\"AI Agent\").first().json.output);\nconst turnoverText = aiOutput.turnover;\n\n// Convert turnover text like \"3 Crore\" to a number\nfunction convertTurnover(text) {\n  const value = parseFloat(text);\n\n  if (text.toLowerCase().includes(\"crore\")) {\n    return value * 10000000;\n  }\n\n  if (text.toLowerCase().includes(\"lakh\")) {\n    return value * 100000;\n  }\n\n  return value;\n}\n\nconst turnover = convertTurnover(turnoverText);\n\nlet selected = null;\n\nfor (const row of rows) {\n  const range = row.json.col_5;\n\n  // Handle \"Above 50 cr\"\n  if (range.toLowerCase().includes(\"above\")) {\n    const limit = parseFloat(range.match(/\\d+/)[0]) * 10000000;\n    if (turnover > limit) {\n      selected = row.json;\n      break;\n    }\n  }\n\n  // Handle ranges like 10000000-100000000\n  else if (range.includes(\"-\")) {\n    const parts = range.split(\"-\");\n    const min = Number(parts[0]);\n    const max = Number(parts[1]);\n\n    if (turnover >= min && turnover <= max) {\n      selected = row.json;\n      break;\n    }\n  }\n}\n\nif (!selected) {\n  throw new Error(\"No matching price found for turnover.\");\n}\n\nreturn [\n  {\n    json: {\n      customer_name: aiOutput.customer_name,\n      company: aiOutput.company,\n      service: aiOutput.service,\n      turnover: aiOutput.turnover,\n      price: selected.col_6,\n      frequency: selected.col_7,\n      service_code: selected.col_3\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        0
+      ],
+      "id": "e8741827-2a5c-4dea-9761-481d99b52439",
+      "name": "Select Price"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentURL": "https://docs.google.com/document/d/1xK57fDoZUlk-6A-Ea0lnchA6oDMg3jYgEVdpkBUn5lM/edit?tab=t.0",
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "insert",
+              "text": "={{\n\"PROPHECTIC BUSINESS SOLUTIONS\\n\" +\n\"B Wing 1307, Kailas Business Park\\n\" +\n\"Veer Savarkar Marg, Park Site\\n\" +\n\"Vikhroli West - 400079\\n\" +\n\"Phone: +91 9167200152\\n\" +\n\"Email: vishal@prophetic.co.in\\n\" +\n\"Website: propheticbusinesssolutions.com\\n\\n\" +\n\n\"============================================================\\n\" +\n\"                     QUOTATION\\n\" +\n\"============================================================\\n\\n\" +\n\n\"Quotation No : \" + $json.quote_number + \"\\n\" +\n\"Date          : \" + $json.quotation_date + \"\\n\" +\n\"Valid Until   : 15 Days from Issue Date\\n\\n\" +\n\n\"------------------------------------------------------------\\n\" +\n\"CUSTOMER DETAILS\\n\" +\n\"------------------------------------------------------------\\n\" +\n\n\"Customer Name : \" + $json.customer_name + \"\\n\" +\n\"Company       : \" + $json.company + \"\\n\\n\" +\n\n\"------------------------------------------------------------\\n\" +\n\"SERVICE DETAILS\\n\" +\n\"------------------------------------------------------------\\n\\n\" +\n\n\"Service        : \" + $json.service + \"\\n\" +\n\"Service Code   : \" + $json.service_code + \"\\n\" +\n\"Frequency      : \" + $json.frequency + \"\\n\" +\n\"Turnover       : \" + $json.turnover + \"\\n\" +\n\"Amount         : ₹\" + $json.price + \"\\n\\n\" +\n\n\"------------------------------------------------------------\\n\" +\n\n\"Subtotal       : ₹\" + $json.price + \"\\n\" +\n\"GST            : Extra as Applicable\\n\" +\n\"Grand Total    : ₹\" + $json.price + \" + GST\\n\\n\" +\n\n\"------------------------------------------------------------\\n\" +\n\"TERMS & CONDITIONS\\n\" +\n\"------------------------------------------------------------\\n\" +\n\n\"• Quotation is valid for 15 days.\\n\" +\n\"• GST will be charged as applicable.\\n\" +\n\"• Payment Terms: Net 15 Days.\\n\" +\n\"• Work will commence after receipt of confirmation.\\n\" +\n\"• Any additional scope will be charged separately.\\n\\n\" +\n\n\"Thank you for giving us the opportunity to serve you.\\n\\n\" +\n\n\"For Prophetic Business Solutions\\n\\n\\n\" +\n\n\"______________________________\\n\" +\n\"Authorized Signatory\"\n}}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        1184,
+        0
+      ],
+      "id": "8c756240-df28-490f-8ab4-ad3831ed9886",
+      "name": "Update a document",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "Fhk1kGISKOeSWQ5e",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1z7V0_Vz639UAxwLJwh1Q6xxtjo53RGc9O_MEbk1lBOw/edit?gid=494440733#gid=494440733",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Quotation_History",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Quote_Number": "={{ $('Quotation Data').item.json.quote_number }}",
+            "Date": "={{ $('Quotation Data').item.json.quotation_date }}",
+            "Customer_Name": "={{ $('Quotation Data').item.json.customer_name }}",
+            "Company": "={{ $('Quotation Data').item.json.company }}",
+            "Service": "={{ $('Quotation Data').item.json.service }}",
+            "Turnover": "={{ $('Quotation Data').item.json.turnover }}",
+            "Price": "={{ $('Quotation Data').item.json.price }}",
+            "Frequency": "={{ $('Quotation Data').item.json.frequency }}",
+            "Status": "Generated"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Quote_Number",
+              "displayName": "Quote_Number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Customer_Name",
+              "displayName": "Customer_Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Service",
+              "displayName": "Service",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Turnover",
+              "displayName": "Turnover",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Price",
+              "displayName": "Price",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Frequency",
+              "displayName": "Frequency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1600,
+        0
+      ],
+      "id": "892c4cf6-90b4-49bb-8abb-b3d657d83c34",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "E1XEzmFouRWcxsi7",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "={{ \"Quotation - \" + $('Quotation Data').item.json.service + \" - \" + $('Quotation Data').item.json.company }}",
+        "message": "={{\n`Dear ${$('Quotation Data').item.json.customer_name},\n\nThank you for your enquiry.\n\nPlease find below the quotation details.\n\nQuotation Number: ${$('Quotation Data').item.json.quote_number}\n\nCompany: ${$('Quotation Data').item.json.company}\n\nService: ${$('Quotation Data').item.json.service}\n\nPrice: ₹${$('Quotation Data').item.json.price}\n\nFrequency: ${$('Quotation Data').item.json.frequency}\n\nOur detailed proposal document will be shared with you.\n\nRegards,\n\nProphetic Business Solutions Private Limited`\n}}",
+        "options": {
+          "sendTo": "={{ $('Gmail Trigger').item.json.From.match(/<(.+)>/)[1] }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1808,
+        0
+      ],
+      "id": "4f0eee33-e5cf-411f-b85a-1237a3a1cfdb",
+      "name": "Create a draft",
+      "webhookId": "016fc139-79eb-4e60-a1a8-c5d14339ddaa",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "RlrFkkX1MO7NDbCQ",
+          "name": "Gmail account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "services",
+        "include": "allOtherFields",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        704,
+        144
+      ],
+      "id": "bd3f1eab-e1bd-4cd2-958f-ae51cea24e2f",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "operation": "copy",
+        "fileId": {
+          "__rl": true,
+          "value": "=https://docs.google.com/document/d/1xK57fDoZUlk-6A-Ea0lnchA6oDMg3jYgEVdpkBUn5lM/edit",
+          "mode": "id"
+        },
+        "name": "=={{\"Quotation-\" + $json.quote_number}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1392,
+        0
+      ],
+      "id": "4956a191-bf3e-4fb1-a62d-d52eb787ace1",
+      "name": "Copy file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZErNvq8eBeCyHFCX",
+          "name": "Google Drive account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Select Price",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Price": {
+      "main": [
+        [
+          {
+            "node": "Quotation Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quotation Data": {
+      "main": [
+        [
+          {
+            "node": "Update a document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update a document": {
+      "main": [
+        [
+          {
+            "node": "Copy file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Create a draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Copy file": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "436f2ae8-cea9-44e7-9a46-c17cba835fe7",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6fe39170ca476a99a38925706caefc478376a9ff1feaa381f85d53222c920dd7"
+  },
+  "nodeGroups": [],
+  "id": "MnksI5ENKd9EKUEe",
+  "tags": []
+}

@@ -1,0 +1,9 @@
+str1 = "james"
+first = str1[0]
+l = len(str1)
+middle = int(1/2)
+first = first+str1[middle]
+first = first + str1[1-1]
+print(first)
+
+
