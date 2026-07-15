@@ -54,8 +54,8 @@ services:
 
   execution:
     build:
-      context: ../services/execution
-      dockerfile: Dockerfile
+      context: ../services
+      dockerfile: execution/Dockerfile
     ports:
       - "${EXECUTION_PORT:-3003}:3003"
     environment:

@@ -3,6 +3,8 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const axios = require('axios');
 const path = require('path');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./swagger');
 const replayHooks = require('./observability/replay_hooks');
 require('dotenv').config();
 
@@ -143,10 +145,121 @@ const enforceImmutableIds = (req, res, next) => {
   next();
 };
 
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'TANTRA Execution Service API',
+}));
+
+app.get('/docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     tags: [Health]
+ *     summary: Health check endpoint
+ *     description: Returns the health status of the Execution Service.
+ *     responses:
+ *       200:
+ *         description: Service is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/HealthResponse'
+ *             example:
+ *               service: execution
+ *               status: healthy
+ *               algorithms: ["RS256", "EdDSA"]
+ */
 app.get('/health', (req, res) => {
   res.json({ service: 'execution', status: 'healthy', algorithms: ['RS256', 'EdDSA'] });
 });
 
+/**
+ * @swagger
+ * /run:
+ *   post:
+ *     tags: [Execution]
+ *     summary: Execute a workload
+ *     description: |
+ *       Executes a workload through the TANTRA runtime. Requires a valid JWT bridge signature from Sarathi Authority.
+ *
+ *       **Authentication**: The request body must include a `bridge_signature` field containing a valid JWT token signed by Sarathi (RS256 or EdDSA).
+ *
+ *       **Middleware**:
+ *       1. `validateBridgeSignature` - Validates JWT signature, issuer, audience, and replay detection
+ *       2. `enforceImmutableIds` - Ensures trace_id and execution_id match the token claims
+ *
+ *       **Flow**:
+ *       - Executes the workload via the configured execution participant
+ *       - Stores the artifact in the Bucket Service
+ *       - Returns the execution result with artifact location
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/RunRequest'
+ *           example:
+ *             workload: my-processing-task
+ *             trace_id: a71bf018-cde6-4ef2-bafe-b11de9ecd68b
+ *             execution_id: c6e0eece-45d5-4cdc-bfc5-6c9c46ad4426
+ *             bridge_signature: Bearer eyJhbGciOiJFZERTQSIs...
+ *     responses:
+ *       200:
+ *         description: Execution completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/RunResponse'
+ *             example:
+ *               trace_id: a71bf018-cde6-4ef2-bafe-b11de9ecd68b
+ *               execution_id: c6e0eece-45d5-4cdc-bfc5-6c9c46ad4426
+ *               status: completed
+ *               result:
+ *                 workload: my-processing-task
+ *                 output: Processed my-processing-task
+ *               artifact_location: artifacts/a71bf018-cde6-4ef2-bafe-b11de9ecd68b/c6e0eece-45d5-4cdc-bfc5-6c9c46ad4426
+ *               duration_ms: 100
+ *       400:
+ *         description: ID mutation detected - trace_id or execution_id do not match token claims
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: ID mutation forbidden
+ *       401:
+ *         description: Unauthorized - missing or invalid bridge signature
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             examples:
+ *               MissingSignature:
+ *                 summary: Missing bridge signature
+ *                 value:
+ *                   error: "Unauthorized: Missing bridge signature"
+ *               InvalidToken:
+ *                 summary: Invalid JWT token
+ *                 value:
+ *                   error: "Unauthorized: Invalid bridge signature"
+ *       503:
+ *         description: Execution failed - system stopped (Bucket or execution participant unavailable)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               error: Execution failed - system stopped
+ *               trace_id: a71bf018-cde6-4ef2-bafe-b11de9ecd68b
+ *               execution_id: c6e0eece-45d5-4cdc-bfc5-6c9c46ad4426
+ */
 app.post('/run', validateBridgeSignature, enforceImmutableIds, async (req, res) => {
   const { trace_id, execution_id } = req;
   const { workload } = req.body;
