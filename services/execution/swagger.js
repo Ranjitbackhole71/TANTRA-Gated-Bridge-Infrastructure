@@ -13,8 +13,8 @@ const options = {
     },
     servers: [
       {
-        url: 'http://localhost:3003',
-        description: 'Local development server',
+        url: 'https://tantra-gated-bridge-infrastructure.onrender.com',
+        description: 'Production Render deployment',
       },
     ],
     components: {
