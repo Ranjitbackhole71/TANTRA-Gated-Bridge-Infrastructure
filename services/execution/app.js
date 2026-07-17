@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
@@ -5,8 +6,7 @@ const axios = require('axios');
 const path = require('path');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
-const replayHooks = require('./observability/replay_hooks');
-require('dotenv').config();
+const replayHooks = require('../observability/replay_hooks');
 
 const app = express();
 app.use(express.json());

@@ -1,10 +1,10 @@
+require('dotenv').config();
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const crypto = require('crypto');
 const replayHooks = require('../observability/replay_hooks');
 const jtiStore = require('../replay_persistence/jti_store');
-require('dotenv').config();
 
 const app = express();
 app.use(express.json());

@@ -82,6 +82,10 @@ app.post('/api/v1/telemetry', (req, res) => {
   }
 });
 
+app.get('/telemetry/summary', (req, res) => {
+  res.json(getTelemetrySummary());
+});
+
 app.get('/telemetry', (req, res) => {
   const { trace_id, limit: limitParam } = req.query;
   let results = trace_id ? getTelemetryByTraceId(trace_id) : getAllTelemetry();
@@ -103,10 +107,6 @@ app.get('/telemetry/:traceId', (req, res) => {
     count: events.length,
     events
   });
-});
-
-app.get('/telemetry/summary', (req, res) => {
-  res.json(getTelemetrySummary());
 });
 
 app.listen(PORT, () => {

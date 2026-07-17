@@ -1,22 +1,32 @@
 # TANTRA Gated Bridge — Canonical Review Packet
 
-**Version**: 4.0.0
-**Date**: 2026-07-13
-**Status**: Production Ready — Runtime Validated — User Product Integrated
-**Repository**: https://github.com/Ranjitbackhole71/TANTRA-Gated-Bridge-Infrastructure.git
+**Version**: 5.0.0
+**Date**: 2026-07-17
+**Status**: Production Ready — Runtime Convergence Validated — End-to-End Operational
+**Repository**: https://github.com/blackholeinfiverse51/ai-crmand
 **Branch**: `master`
-**Latest Commit**: `c4d10fa`
 
 ---
 
 ## Executive Summary
 
-TANTRA is a zero-trust, hard-fail distributed infrastructure pipeline for secure workload execution. All 6 services are operational, 99/99 tests pass, and full runtime chain has been verified with live evidence collected 2026-07-09.
+TANTRA is a zero-trust, hard-fail distributed infrastructure pipeline for secure workload execution. All 7 services (including SETU) are operational. **132/132 tests pass** across Python platform tests, comprehensive E2E validation, and security tests. Full runtime lifecycle validated end-to-end with live evidence collected 2026-07-17.
 
 **Setu** (v1.0.0) — the user-facing product — has been integrated, proving a real input-to-output runtime lifecycle. Every request traverses: Setu → Core → Sarathi → Bridge → Execution → Bucket → Replay Persistence → InsightFlow → Response to User.
 
-**Test Results**: 76 platform + 7 survivability + 12 convergence + 4 integration = **99/99 PASS**
-**Lifecycle Tests**: 2/2 Setu end-to-end lifecycle tests PASS (2026-07-13)
+**Test Results (2026-07-17)**:
+- Python platform tests: **76/76 PASS**
+- Comprehensive E2E validation: **49/49 PASS**
+- Security validation: **7/7 PASS**
+- **Total: 132/132 PASS**
+
+**Critical Bugs Fixed (6)**:
+1. Execution Dockerfile missing observability/replay_persistence COPY
+2. Execution package.json missing swagger-ui-express and swagger-jsdoc
+3. Bridge/Execution dotenv loaded AFTER replay_hooks (adapter couldn't read env vars)
+4. InsightFlow adapter couldn't find axios (not installed in insightflow dir)
+5. InsightFlow route ordering: /telemetry/summary matched by /telemetry/:traceId
+6. Execution app.js wrong require path for observability (Docker vs native)
 
 ---
 
