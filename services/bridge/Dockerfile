@@ -6,5 +6,6 @@ RUN npm install --production
 COPY bridge/ .
 COPY observability/ ./observability/
 COPY replay_persistence/ ./replay_persistence/
+COPY insightflow/ ./insightflow/
 EXPOSE 3002
 CMD ["node", "app.js"]
