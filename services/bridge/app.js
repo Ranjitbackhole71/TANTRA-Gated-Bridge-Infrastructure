@@ -3,8 +3,8 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const crypto = require('crypto');
-const replayHooks = require('../observability/replay_hooks');
-const jtiStore = require('../replay_persistence/jti_store');
+const replayHooks = require('./observability/replay_hooks');
+const jtiStore = require('./replay_persistence/jti_store');
 
 const app = express();
 app.use(express.json());
