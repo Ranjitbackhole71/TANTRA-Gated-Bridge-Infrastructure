@@ -6,7 +6,7 @@ const axios = require('axios');
 const path = require('path');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
-const replayHooks = require('../observability/replay_hooks');
+const replayHooks = require('./observability/replay_hooks');
 
 const app = express();
 app.use(express.json());
