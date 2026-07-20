@@ -171,6 +171,7 @@ verify_test.js
 update.json
 docker-entrypoint.sh
 Dockerfile
+!services/insightflow/Dockerfile
 conditonal\ statements\ problems.py
 eclipse-workspace/
 eclipse/
