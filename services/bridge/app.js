@@ -23,6 +23,7 @@ const log = (trace_id, execution_id, service_name, status, message) => {
 const PORT = process.env.PORT || 3002;
 const SARATHI_URL = process.env.SARATHI_URL || 'http://localhost:3001';
 const EXECUTION_URL = process.env.EXECUTION_URL || 'http://localhost:3003';
+const EXECUTION_TIMEOUT_MS = parseInt(process.env.EXECUTION_TIMEOUT_MS) || 25000;
 
 let jwksCache = null;
 let jwksCacheExpiry = 0;
@@ -230,7 +231,7 @@ app.post('/execute', validateToken, enforceContinuity, async (req, res) => {
       },
       {
         headers: { 'Content-Type': 'application/json' },
-        timeout: 5000
+        timeout: EXECUTION_TIMEOUT_MS
       }
     );
 

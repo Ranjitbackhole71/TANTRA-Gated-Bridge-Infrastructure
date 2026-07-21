@@ -20,6 +20,8 @@ const log = (trace_id, execution_id, service_name, status, message) => {
 const PORT = process.env.PORT || 3000;
 const SARATHI_URL = process.env.SARATHI_URL || 'http://localhost:3001';
 const BRIDGE_URL = process.env.BRIDGE_URL || 'http://localhost:3002';
+const SARATHI_TIMEOUT_MS = parseInt(process.env.SARATHI_TIMEOUT_MS) || 25000;
+const BRIDGE_TIMEOUT_MS = parseInt(process.env.BRIDGE_TIMEOUT_MS) || 30000;
 
 app.get('/health', (req, res) => {
   res.json({ service: 'core', status: 'healthy' });
@@ -38,7 +40,7 @@ app.post('/initiate', async (req, res) => {
     const tokenResponse = await axios.post(
       `${SARATHI_URL}/token`,
       { trace_id, execution_id, cet_hash },
-      { timeout: 5000 }
+      { timeout: SARATHI_TIMEOUT_MS }
     );
 
     const { token } = tokenResponse.data;
@@ -62,7 +64,7 @@ app.post('/initiate', async (req, res) => {
           'X-Sarathi-Execution-Id': execution_id,
           'X-Sarathi-Cet-Hash': cet_hash
         },
-        timeout: 10000
+        timeout: BRIDGE_TIMEOUT_MS
       }
     );
 

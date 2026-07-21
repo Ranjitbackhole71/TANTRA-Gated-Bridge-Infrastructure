@@ -25,6 +25,7 @@ const log = (trace_id, execution_id, service_name, status, message) => {
 const PORT = process.env.PORT || 3003;
 const SARATHI_URL = process.env.SARATHI_URL || 'http://localhost:3001';
 const BUCKET_URL = process.env.BUCKET_URL || 'http://localhost:3004';
+const BUCKET_TIMEOUT_MS = parseInt(process.env.BUCKET_TIMEOUT_MS) || 15000;
 
 let jwksCache = null;
 let jwksCacheExpiry = 0;
@@ -288,7 +289,7 @@ app.post('/run', validateBridgeSignature, enforceImmutableIds, async (req, res) 
       artifact,
       {
         headers: { 'Content-Type': 'application/json' },
-        timeout: 5000
+        timeout: BUCKET_TIMEOUT_MS
       }
     );
 

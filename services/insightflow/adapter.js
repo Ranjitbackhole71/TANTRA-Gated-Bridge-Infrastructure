@@ -2,6 +2,7 @@ const telemetry = require('../observability/telemetry_emitter');
 
 const INSIGHTFLOW_URL = process.env.INSIGHTFLOW_URL;
 const INSIGHTFLOW_API_KEY = process.env.INSIGHTFLOW_API_KEY;
+const INSIGHTFLOW_TIMEOUT_MS = parseInt(process.env.INSIGHTFLOW_TIMEOUT_MS) || 10000;
 const ENABLED = process.env.INSIGHTFLOW_ENABLED === 'true';
 
 let httpClient = null;
@@ -48,7 +49,7 @@ async function forward(payload) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${INSIGHTFLOW_API_KEY || ''}`
         },
-        timeout: 3000
+        timeout: INSIGHTFLOW_TIMEOUT_MS
       }
     );
     return { forwarded: true, status: response.status };
