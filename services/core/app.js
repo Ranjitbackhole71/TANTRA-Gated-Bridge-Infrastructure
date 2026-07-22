@@ -27,6 +27,28 @@ app.get('/health', (req, res) => {
   res.json({ service: 'core', status: 'healthy' });
 });
 
+app.get('/diagnostic/sarathi-health', async (req, res) => {
+  const url = `${SARATHI_URL}/health`;
+  const start = Date.now();
+  try {
+    const response = await axios.get(url, { timeout: 10000 });
+    res.json({
+      resolved_url: url,
+      status: response.status,
+      body: response.data,
+      duration_ms: Date.now() - start
+    });
+  } catch (err) {
+    res.json({
+      resolved_url: url,
+      status: err.response ? err.response.status : null,
+      error_code: err.code || null,
+      error_message: err.message,
+      duration_ms: Date.now() - start
+    });
+  }
+});
+
 app.post('/initiate', async (req, res) => {
   const trace_id = crypto.randomUUID();
   const execution_id = crypto.randomUUID();
