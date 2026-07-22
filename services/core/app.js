@@ -36,7 +36,17 @@ app.get('/diagnostic/sarathi-health', async (req, res) => {
       resolved_url: url,
       status: response.status,
       body: response.data,
-      duration_ms: Date.now() - start
+      duration_ms: Date.now() - start,
+      env: {
+        http_proxy_set: !!process.env.HTTP_PROXY || !!process.env.http_proxy,
+        https_proxy_set: !!process.env.HTTPS_PROXY || !!process.env.https_proxy,
+        no_proxy_set: !!(process.env.NO_PROXY || process.env.no_proxy),
+        no_proxy_value: process.env.NO_PROXY || process.env.no_proxy || null
+      },
+      runtime: {
+        node_version: process.version,
+        axios_version: axios.VERSION || null
+      }
     });
   } catch (err) {
     res.json({
@@ -44,7 +54,17 @@ app.get('/diagnostic/sarathi-health', async (req, res) => {
       status: err.response ? err.response.status : null,
       error_code: err.code || null,
       error_message: err.message,
-      duration_ms: Date.now() - start
+      duration_ms: Date.now() - start,
+      env: {
+        http_proxy_set: !!process.env.HTTP_PROXY || !!process.env.http_proxy,
+        https_proxy_set: !!process.env.HTTPS_PROXY || !!process.env.https_proxy,
+        no_proxy_set: !!(process.env.NO_PROXY || process.env.no_proxy),
+        no_proxy_value: process.env.NO_PROXY || process.env.no_proxy || null
+      },
+      runtime: {
+        node_version: process.version,
+        axios_version: axios.VERSION || null
+      }
     });
   }
 });
