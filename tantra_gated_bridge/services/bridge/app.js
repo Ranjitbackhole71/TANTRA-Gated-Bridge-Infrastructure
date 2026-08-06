@@ -4,10 +4,15 @@ const axios = require('axios');
 const crypto = require('crypto');
 const replayHooks = require('../observability/replay_hooks');
 const jtiStore = require('../replay_persistence/jti_store');
+// FIX: Lazy-load removed — top-level import prevents deferred load errors and event-loop stall on first interval tick.
+const appendOnlyStore = require('../replay_persistence/append_only_store');
 require('dotenv').config();
 
 const app = express();
-app.use(express.json());
+// FIX: Body size limit (CWE-400 / OWASP DoS) — prevents oversized payloads from being forwarded to the execution service.
+app.use(express.json({ limit: '64kb' }));
+// FIX: Remove X-Powered-By to avoid fingerprinting the runtime (OWASP A05:2021 Security Misconfiguration).
+app.disable('x-powered-by');
 
 const log = (trace_id, execution_id, service_name, status, message) => {
   console.log(JSON.stringify({
@@ -21,8 +26,32 @@ const log = (trace_id, execution_id, service_name, status, message) => {
 };
 
 const PORT = process.env.PORT || 3002;
-const SARATHI_URL = process.env.SARATHI_URL || 'http://localhost:3001';
-const EXECUTION_URL = process.env.EXECUTION_URL || 'http://localhost:3003';
+
+// FIX: SSRF mitigation (CWE-918) — validate both upstream URLs at startup, not per-request.
+// Permitted schemes: https in production, http only for localhost in development.
+// The process exits immediately on invalid config so the orchestrator can alert and restart cleanly.
+const ALLOWED_SCHEMES = new Set(['https:']);
+const ALLOWED_LOCALHOST_SCHEMES = new Set(['http:', 'https:']);
+
+function validateUpstreamUrl(name, raw) {
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    console.error(JSON.stringify({ timestamp: new Date().toISOString(), service_name: 'bridge', status: 'fatal', message: `${name} is not a valid URL: ${raw}` }));
+    process.exit(1);
+  }
+  const isLocalhost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+  const permitted = isLocalhost ? ALLOWED_LOCALHOST_SCHEMES : ALLOWED_SCHEMES;
+  if (!permitted.has(parsed.protocol)) {
+    console.error(JSON.stringify({ timestamp: new Date().toISOString(), service_name: 'bridge', status: 'fatal', message: `${name} uses disallowed scheme '${parsed.protocol}' for host '${parsed.hostname}'. Permitted: ${[...permitted].join(', ')}` }));
+    process.exit(1);
+  }
+  return raw;
+}
+
+const SARATHI_URL = validateUpstreamUrl('SARATHI_URL', process.env.SARATHI_URL || 'http://localhost:3001');
+const EXECUTION_URL = validateUpstreamUrl('EXECUTION_URL', process.env.EXECUTION_URL || 'http://localhost:3003');
 
 let jwksCache = null;
 let jwksCacheExpiry = 0;
@@ -30,8 +59,9 @@ const JWKS_CACHE_TTL_MS = parseInt(process.env.JWKS_CACHE_TTL_MS) || 300000;
 
 const REPLAY_TTL_MS = 3600000;
 
+// FIX: Lazy require replaced with top-level import (appendOnlyStore, declared above).
 setInterval(() => {
-  const records = require('../replay_persistence/append_only_store').getAllRecords();
+  const records = appendOnlyStore.getAllRecords();
   const now = Date.now();
   let expired = 0;
   for (const record of records) {
@@ -52,7 +82,8 @@ async function fetchJwks() {
     return jwksCache;
   }
   try {
-    const response = await axios.get(`${SARATHI_URL}/.well-known/jwks.json`);
+    // FIX: Timeout added (CWE-400) — a slow Sarathi response previously blocked the request indefinitely.
+    const response = await axios.get(`${SARATHI_URL}/.well-known/jwks.json`, { timeout: 5000 });
     if (!response.data.keys || response.data.keys.length === 0) {
       throw new Error('Empty JWKS keyset');
     }
@@ -71,8 +102,10 @@ async function fetchJwks() {
 }
 
 function resolveJwk(keys, kid) {
+  // FIX: Removed silent fallback to keys[0] when kid is absent (JWT key confusion risk).
+  // A token without a kid header is rejected — the issuer must always specify which key was used.
   if (!kid) {
-    return keys[0];
+    throw new Error('JWT header missing kid claim — key identity required');
   }
   const key = keys.find(k => k.kid === kid);
   if (!key) {
@@ -150,7 +183,8 @@ const validateToken = async (req, res, next) => {
     }
 
     if (jtiStore.hasJti(decoded.jti)) {
-      log(decoded.trace_id, decoded.execution_id, 'bridge', 'error', `Replay attack detected - jti: ${decoded.jti}`);
+      // FIX: JTI truncated in log output — logging the full JTI makes the log a partial token oracle.
+      log(decoded.trace_id, decoded.execution_id, 'bridge', 'error', `Replay attack detected - jti prefix: ${decoded.jti.substring(0, 8)}...`);
       replayHooks.hookRejection(decoded.trace_id, decoded.execution_id, 'replay_detected');
       return res.status(401).json({ error: 'Unauthorized: Token replay detected' });
     }
@@ -228,6 +262,10 @@ app.get('/health', (req, res) => {
   res.json({ service: 'bridge', status: 'healthy', algorithms: ['RS256', 'EdDSA'] });
 });
 
+// CSRF DESIGN DECISION: This service authenticates exclusively via Authorization: Bearer JWT headers.
+// Browsers never automatically attach Authorization headers to cross-origin requests — that requires
+// explicit JavaScript, which is blocked by the Same-Origin Policy. Cookie-based auth is not used
+// anywhere in this service. CSRF protection middleware is therefore not applicable. (OWASP CSRF)
 app.post('/execute', validateToken, enforceContinuity, async (req, res) => {
   const { trace_id, execution_id } = req;
 
@@ -235,11 +273,20 @@ app.post('/execute', validateToken, enforceContinuity, async (req, res) => {
 
   replayHooks.hookServiceTransition(trace_id, execution_id, 'bridge', 'pending', 'forwarding');
 
+  // FIX: Input validation (CWE-20 / OWASP A03) — req.body is no longer spread blindly into the
+  // downstream payload. Only the known field 'workload' is forwarded. This prevents prototype
+  // pollution keys (__proto__, constructor) and unknown fields from reaching the execution service.
+  const { workload } = req.body;
+  if (typeof workload !== 'string' || workload.trim() === '') {
+    log(trace_id, execution_id, 'bridge', 'error', 'Invalid or missing workload field in request body');
+    return res.status(400).json({ error: 'Invalid request: workload must be a non-empty string' });
+  }
+
   try {
     const response = await axios.post(
       `${EXECUTION_URL}/run`,
       {
-        ...req.body,
+        workload,
         trace_id,
         execution_id,
         bridge_signature: req.headers.authorization
