@@ -4,6 +4,8 @@
 **Auditor**: TANTRA Runtime Convergence Engineer
 **Repository**: `C:\Users\Ranjit`
 
+This audit is a point-in-time snapshot from 2026-06-05. Later review packets may document additional runtime state, including local receivers or acceptance evidence, that is outside the scope of this snapshot.
+
 ---
 
 ## 1. EXISTING INTEGRATIONS
@@ -22,8 +24,8 @@
 
 | Integration | Gap | SeverITY | Root Cause |
 |-------------|-----|----------|------------|
-| InsightFlow live emission | InsightFlow is CONTRACT ONLY. No live InsightFlow service exists. | HIGH | No InsightFlow URL configured; adapter exists but no receiver |
-| Persistent replay cache | Bridge replay cache is in-memory Map<jti, timestamp>. Lost on restart. | MEDIUM | No integration with replay_persistence for jti tracking |
+| InsightFlow live emission | No live InsightFlow service was configured in this audit snapshot. | HIGH | No InsightFlow URL configured; adapter exists but no receiver |
+| Persistent replay cache | Bridge replay cache is process-scoped Map<jti, timestamp>. It is not a persistent distributed store. | MEDIUM | No integration with replay_persistence for jti tracking |
 | Execution participant (tantra_gated_bridge) | tantra_gated_bridge/services/execution/ lacks execution_participant.js adapter | MEDIUM | Divergent copies: services/ has adapter, tantra_gated_bridge/ uses simulation |
 | Real (non-simulated) workload | Execution uses setTimeout simulation, not real workload | MEDIUM | EXECUTION_PARTICIPANT env var not set |
 
@@ -52,7 +54,7 @@
 | Live Sarathi → Bridge activation | COMPLETE | Live E2E execution verified with kid in JWT + JWKS validation |
 | JWKS capability enforcement | COMPLETE | /jwks endpoint, kid in header, caching, 7/7 tests PASS |
 | Runtime participant integration | PARTIAL | adapter wired in code; EXECUTION_PARTICIPANT env var not set |
-| InsightFlow participation | CONTRACT ONLY | No live telemetry emission to InsightFlow |
+| InsightFlow participation | CONTRACT ONLY in this snapshot | No live telemetry emission to InsightFlow |
 | Bucket continuity | PARTIAL | Live execution recorded in replay log; artifact hashes not cross-referenced |
 | Degraded survivability validation | PARTIAL | Test code written (SURV-008 to SURV-013) but no proof artifact |
 | Final convergence packet | PARTIAL | REVIEW_PACKET_FINAL_CONVERGENCE.md exists but needs JWKS evidence update |
@@ -62,10 +64,10 @@
 | Gap | Classification | Details |
 |-----|---------------|---------|
 | No real runtime participant | (C) Integration Work | Execution uses setTimeout simulation; execution_participant.js exists but EXECUTION_PARTICIPANT env var not set |
-| In-memory replay cache | (C) Integration Work | Bridge jti cache lost on restart |
+| Process-scoped replay cache | (C) Integration Work | Bridge jti cache is not persistent across restart |
 | InsightFlow unreachable | (D) External Dependency | No InsightFlow service URL configured |
 | Degraded survivability proof missing | (A) Repository Work | Test code exists but no run proof artifact |
-| Divergent directory copies | (A) Repository Work | services/ and tantra_gated_bridge/ out of sync (execution_participant.js, insightflow, observability) |
+| Divergent directory copies | (A) Repository Work | services/ and tantra_gated_bridge/ were out of sync in this snapshot (execution_participant.js, insightflow, observability) |
 | LIVE_PROOF_CHECKLIST.md unfilled | (A) Repository Work | All statuses show `letter` (pending) |
 | No CI/CD pipeline | (B) Deployment Work | No automated verification |
 | No .gitignore | (A) Repository Work | node_modules, keys, .env not excluded |
@@ -81,7 +83,7 @@
 
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|------------|
-| In-memory replay cache lost on restart | HIGH | MEDIUM | Integrate with replay_persistence/idempotency_store.js for persistent jti tracking |
+| Process-scoped replay cache lost on restart | HIGH | MEDIUM | Integrate with replay_persistence/idempotency_store.js for persistent jti tracking |
 | Simulated workload masks integration bugs | MEDIUM | HIGH | Configure EXECUTION_PARTICIPANT env var to activate real participant |
 | Two divergent directory copies | HIGH | MEDIUM | Consolidate to single source of truth (tantra_gated_bridge/) |
 | No CI/CD means manual verification only | HIGH | HIGH | Add GitHub Actions or equivalent for automated test execution |
@@ -126,7 +128,7 @@
   ```
   Subject: TANTRA Runtime Convergence — InsightFlow service endpoint required
   Body: Need InsightFlow service URL and API key to complete Phase 4 integration.
-  Current adapter is CONTRACT ONLY. No receiver configured.
+  Current adapter is contract-only in this snapshot. No external receiver configured.
   Required: INSIGHTFLOW_URL, INSIGHTFLOW_API_KEY, health check confirmation.
   Blocker: Blocks InsightFlow participation verification.
   ```

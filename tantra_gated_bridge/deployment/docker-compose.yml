@@ -37,8 +37,8 @@ services:
 
   bridge:
     build:
-      context: ../services/bridge
-      dockerfile: Dockerfile
+      context: ../services
+      dockerfile: bridge/Dockerfile
     ports:
       - "${BRIDGE_PORT:-3002}:3002"
     environment:
@@ -78,7 +78,7 @@ services:
     environment:
       - PORT=3004
     volumes:
-      - bucket-data:/app
+      - bucket-data:/data
     networks:
       - tantra-network
     restart: unless-stopped

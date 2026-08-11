@@ -18,7 +18,7 @@ Append-only replay log with SHA-256 hash chain integrity.
 | `append_only_store.js` | Core append-only JSONL log. `appendRecord()` writes, `validateChainIntegrity()` verifies. |
 | `lineage_tracker.js` | Builds execution lineage graphs from parent_execution_id references. |
 | `continuity_recorder.js` | Records execution transitions, rejections, dependency failures. |
-| `idempotency_store.js` | Distributed-safe idempotency. Cache auto-warms from log on restart. |
+| `idempotency_store.js` | Process-scoped idempotency tracking. Cache rehydrates from the log on restart. |
 
 ### Replay Reconstruction (`replay_reconstruction/`)
 Read-only trace reconstruction, verification, and corruption detection.

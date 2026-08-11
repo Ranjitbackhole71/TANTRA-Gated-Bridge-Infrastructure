@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json());
 
 // SQLite-backed persistent storage
-const db = new Database('bucket.db');
+const db = new Database('/data/bucket.db');
 
 // Create artifacts table with schema validation
 db.exec(`

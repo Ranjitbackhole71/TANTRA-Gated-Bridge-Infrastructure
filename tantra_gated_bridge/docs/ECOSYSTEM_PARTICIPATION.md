@@ -200,6 +200,8 @@ console.log(`\nOverall: ${passedCount === results.length ? 'ALL CONTRACTS ACTIVE
 
 ### 5.2 Integration Contract Stub (InsightFlow)
 
+This section documents a passive contract stub only. It does not assert a connected external InsightFlow deployment.
+
 ```javascript
 // stub_insightflow_integration.js
 // InsightFlow Integration Contract — Passive Observability Export

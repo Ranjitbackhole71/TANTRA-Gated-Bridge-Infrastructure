@@ -142,7 +142,7 @@ User → Core(:3000) → Sarathi(:3001) → Bridge(:3002) → Execution(:3003) �
 
 ### 3. Canonical Repo Convergence
 
-All source code, documentation, deployment configs, and proof artifacts are unified under a single canonical repository at `tantra_gated_bridge/`. No external dependencies beyond standard Docker and Node.js tooling.
+This packet describes the `tantra_gated_bridge/` snapshot. Source code, documentation, deployment configs, and proof artifacts are organized under that tree for this packet; external service dependencies are documented separately in the runtime acceptance and ecosystem packets.
 
 ### 4. Docker Compose Deployment Layer
 
@@ -204,13 +204,13 @@ Key deployment features:
 
 File: `docs/ECOSYSTEM_PARTICIPATION.md` section 5.2
 
-Provides a read-only pull-mode integration:
+Provides a read-only pull-mode integration contract:
 ```
 readTelemetryStream(options) — filter by since/eventTypes
 getSystemHealthSnapshot() — aggregate telemetry summary
 ```
 
-Zero push, zero webhook, zero auth token exchange. Pure passive observability export.
+Zero push, zero webhook, zero auth token exchange. Pure passive observability export. This packet does not assert a live external InsightFlow endpoint.
 
 ### 11. Constitutional Documentation
 
@@ -230,7 +230,7 @@ The replay log is local filesystem only. No built-in mechanism to replicate acro
 
 ### 2. No Distributed Idempotency
 
-The idempotency store uses an in-memory Set, populated lazily from the log. Not shared across processes.
+The idempotency store is process-scoped and rehydrates from the log on restart. It is not a distributed persistent store.
 
 ### 3. No Real-Time Streaming
 
@@ -248,9 +248,9 @@ Replay log, chain state, and SQLite database are plaintext.
 
 No sidecar injection or distributed tracing header propagation.
 
-### 7. No InsightFlow Integration
+### 7. No External InsightFlow Endpoint
 
-Integration contract stub provided but not connected to InsightFlow.
+Integration contract stub provided, but this packet does not assert a live external InsightFlow endpoint.
 
 ### 8. No Log Rotation/Retention
 
@@ -721,7 +721,7 @@ start_all.sh → ✅ 5 services healthy
 
 **Final convergence packaging, deployment validation, replay survivability validation, and ecosystem participation alignment completed successfully.**
 
-The TANTRA Gated Bridge system is fully packaged as a canonical repository with verified Docker Compose deployment, one-command start/stop/verify operations, real process lifecycle survivability tests (7/7 pass), replay continuity proofs with chain integrity verification (296 records, 0 errors), ecosystem participation contracts (7/7 active), passive observability compliance, InsightFlow integration stubs, and complete constitutional boundary verification. All proofs are reproducible via documented commands. Known limitations and distributed gaps are transparently disclosed.
+The TANTRA Gated Bridge system is packaged for this snapshot with verified Docker Compose deployment, one-command start/stop/verify operations, real process lifecycle survivability tests (7/7 pass), replay continuity proofs with chain integrity verification (296 records, 0 errors), ecosystem participation contracts (7/7 active), passive observability compliance, InsightFlow integration stubs, and complete constitutional boundary verification. All proofs are reproducible via documented commands. Known limitations and distributed gaps are transparently disclosed.
 
 ---
 

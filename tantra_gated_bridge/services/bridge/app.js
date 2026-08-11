@@ -32,24 +32,47 @@ const PORT = process.env.PORT || 3002;
 // The process exits immediately on invalid config so the orchestrator can alert and restart cleanly.
 const ALLOWED_SCHEMES = new Set(['https:']);
 const ALLOWED_LOCALHOST_SCHEMES = new Set(['http:', 'https:']);
+const ALLOWED_INTERNAL_HOSTS = new Set(['sarathi', 'execution']);
 
 function validateUpstreamUrl(name, raw) {
   let parsed;
+
   try {
     parsed = new URL(raw);
   } catch {
-    console.error(JSON.stringify({ timestamp: new Date().toISOString(), service_name: 'bridge', status: 'fatal', message: `${name} is not a valid URL: ${raw}` }));
+    console.error(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      service_name: 'bridge',
+      status: 'fatal',
+      message: `${name} is not a valid URL: ${raw}`
+    }));
     process.exit(1);
   }
-  const isLocalhost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
-  const permitted = isLocalhost ? ALLOWED_LOCALHOST_SCHEMES : ALLOWED_SCHEMES;
+
+  const isLocalhost =
+    parsed.hostname === 'localhost' ||
+    parsed.hostname === '127.0.0.1';
+
+  const isTrustedInternalHost =
+    ALLOWED_INTERNAL_HOSTS.has(parsed.hostname);
+
+  const permitted =
+    isLocalhost || isTrustedInternalHost
+      ? ALLOWED_LOCALHOST_SCHEMES
+      : ALLOWED_SCHEMES;
+
   if (!permitted.has(parsed.protocol)) {
-    console.error(JSON.stringify({ timestamp: new Date().toISOString(), service_name: 'bridge', status: 'fatal', message: `${name} uses disallowed scheme '${parsed.protocol}' for host '${parsed.hostname}'. Permitted: ${[...permitted].join(', ')}` }));
+    console.error(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      service_name: 'bridge',
+      status: 'fatal',
+      message: `${name} uses disallowed scheme '${parsed.protocol}' for host '${parsed.hostname}'. Permitted: ${[...permitted].join(', ')}`
+    }));
     process.exit(1);
   }
+
   return raw;
 }
-
 const SARATHI_URL = validateUpstreamUrl('SARATHI_URL', process.env.SARATHI_URL || 'http://localhost:3001');
 const EXECUTION_URL = validateUpstreamUrl('EXECUTION_URL', process.env.EXECUTION_URL || 'http://localhost:3003');
 
