@@ -27,7 +27,7 @@ jobs:
           # We use a stub here - real secrets are injected at deploy time via GitHub secrets.
           cat <<EOF > .env
           NODE_ENV=production
-          TANTRA_CORE_PORT=3008
+          TANTRA_CORE_PORT=3009
           EOF
 
       - name: Validate Docker Compose files
@@ -188,7 +188,7 @@ jobs:
               fi
               
               CORE_HEALTH=0
-              curl -sf http://localhost:3008/health > /dev/null && CORE_HEALTH=1
+              curl -sf http://localhost:3009/health > /dev/null && CORE_HEALTH=1
               
               if [ "$UNHEALTHY_COUNT" -eq 0 ] && [ "$STARTING_COUNT" -eq 0 ] && [ "$CORE_HEALTH" -eq 1 ]; then
                 echo "All containers and Core endpoint are healthy!"
@@ -288,7 +288,7 @@ jobs:
                 fi
                 
                 CORE_HEALTH=0
-                curl -sf http://localhost:3008/health > /dev/null && CORE_HEALTH=1
+                curl -sf http://localhost:3009/health > /dev/null && CORE_HEALTH=1
                 
                 if [ "$UNHEALTHY_COUNT" -eq 0 ] && [ "$STARTING_COUNT" -eq 0 ] && [ "$CORE_HEALTH" -eq 1 ]; then
                   echo "Rollback deployment is healthy!"

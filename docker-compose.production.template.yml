@@ -31,7 +31,7 @@ services:
     image: bhiv/tantra-core:IMG_TAG
     container_name: tantra-core
     ports:
-      - "3008:3000"
+      - "3009:3000"
     env_file:
       - .env
     environment:
