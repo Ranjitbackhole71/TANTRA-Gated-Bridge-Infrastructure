@@ -1,0 +1,213 @@
+# TANTRA Platform Runtime - Production Docker Compose Template
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: tantra-redis
+    # Ports omitted for internal isolation
+    volumes:
+      - redis-data:/data
+    networks:
+      - tantra-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  tantra-core:
+    image: bhiv/tantra-core:IMG_TAG
+    container_name: tantra-core
+    ports:
+      - "3008:3000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - SARATHI_URL=http://tantra-sarathi:3001
+      - BRIDGE_URL=http://tantra-bridge:3002
+    networks:
+      - tantra-network
+    depends_on:
+      - tantra-sarathi
+      - tantra-bridge
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  tantra-sarathi:
+    image: bhiv/tantra-sarathi:IMG_TAG
+    container_name: tantra-sarathi
+    # Ports omitted for internal isolation
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - ISSUER=tantra-sarathi
+    volumes:
+      - sarathi-keys:/app/keys
+    networks:
+      - tantra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  tantra-bridge:
+    image: bhiv/tantra-bridge:IMG_TAG
+    container_name: tantra-bridge
+    # Ports omitted for internal isolation
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - SARATHI_URL=http://tantra-sarathi:3001
+      - EXECUTION_URL=http://tantra-execution:3003
+    volumes:
+      - replay-data:/app/replay_persistence/data
+    networks:
+      - tantra-network
+    depends_on:
+      - tantra-sarathi
+      - tantra-execution
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  tantra-execution:
+    image: bhiv/tantra-execution:IMG_TAG
+    container_name: tantra-execution
+    # Ports omitted for internal isolation
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=3003
+      - SARATHI_URL=http://tantra-sarathi:3001
+      - BUCKET_URL=http://tantra-bucket:3004
+    volumes:
+      - execution-outputs:/app/execution/outputs
+    networks:
+      - tantra-network
+    depends_on:
+      - tantra-sarathi
+      - tantra-bucket
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  tantra-bucket:
+    image: bhiv/tantra-bucket:IMG_TAG
+    container_name: tantra-bucket
+    # Ports omitted for internal isolation
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=3004
+    volumes:
+      - bucket-data:/app/data
+    networks:
+      - tantra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  tantra-insightflow:
+    image: bhiv/tantra-insightflow:IMG_TAG
+    container_name: tantra-insightflow
+    # Ports omitted for internal isolation
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - INSIGHTFLOW_PORT=3005
+      - INSIGHTFLOW_DATA_DIR=/app/data
+    volumes:
+      - insightflow-data:/app/data
+    networks:
+      - tantra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3005/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  redis-data:
+    driver: local
+  sarathi-keys:
+    driver: local
+  bucket-data:
+    driver: local
+  insightflow-data:
+    driver: local
+  execution-outputs:
+    driver: local
+  replay-data:
+    driver: local
+
+networks:
+  tantra-network:
+    driver: bridge
+    name: tantra-network

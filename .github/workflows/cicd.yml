@@ -1,0 +1,332 @@
+name: TANTRA Production CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Validate production deployment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: set GitHub SHA
+        run: echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Generate Compose file for validation
+        run: |
+          sed "s|IMG_TAG|$short_sha|g" docker-compose.production.template.yml > docker-compose.production.yml
+
+      - name: Create stub .env for compose validation
+        run: |
+          # Docker Compose config requires the env_file to exist if referenced.
+          # We use a stub here - real secrets are injected at deploy time via GitHub secrets.
+          cat <<EOF > .env
+          NODE_ENV=production
+          TANTRA_CORE_PORT=3008
+          EOF
+
+      - name: Validate Docker Compose files
+        run: |
+          docker compose -f docker-compose.production.yml config
+
+      - name: Upload deployment artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-artifacts
+          path: |
+            docker-compose.production.template.yml
+
+  build:
+    name: Build production images
+    runs-on: ubuntu-latest
+    needs: validate
+    outputs:
+      sha_short: ${{ steps.vars.outputs.sha_short }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set short git commit SHA
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short=7 HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Core image
+        run: |
+          docker buildx build --push \
+            --tag bhiv/tantra-core:${{ steps.vars.outputs.sha_short }} \
+            -f services/core/Dockerfile services/core
+
+      - name: Build and push Sarathi image
+        run: |
+          docker buildx build --push \
+            --tag bhiv/tantra-sarathi:${{ steps.vars.outputs.sha_short }} \
+            -f services/sarathi/Dockerfile services/sarathi
+
+      - name: Build and push Bridge image
+        run: |
+          docker buildx build --push \
+            --tag bhiv/tantra-bridge:${{ steps.vars.outputs.sha_short }} \
+            -f services/bridge/Dockerfile services/bridge
+
+      - name: Build and push Execution image
+        run: |
+          docker buildx build --push \
+            --tag bhiv/tantra-execution:${{ steps.vars.outputs.sha_short }} \
+            -f services/execution/Dockerfile services/execution
+
+      - name: Build and push Bucket image
+        run: |
+          docker buildx build --push \
+            --tag bhiv/tantra-bucket:${{ steps.vars.outputs.sha_short }} \
+            -f services/bucket/Dockerfile services/bucket
+
+      - name: Build and push InsightFlow image
+        run: |
+          docker buildx build --push \
+            --tag bhiv/tantra-insightflow:${{ steps.vars.outputs.sha_short }} \
+            -f services/insightflow/Dockerfile services/insightflow
+
+  deploy:
+    name: Deploy to remote production VM via SSH
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download deployment artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-artifacts
+
+      - name: Create .env file from secrets
+        run: |
+          cat <<'EOF' > .env
+          ${{ secrets.ENV_FILE }}
+          EOF
+
+      - name: Tar deployment files
+        run: |
+          tar -czf deployment.tar.gz docker-compose.production.template.yml .env
+
+      - name: Install sshpass
+        run: |
+          sudo apt-get update && sudo apt-get install -y sshpass
+
+      - name: Create TANTRA directory on VM
+        run: |
+          sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -p ${{ secrets.VM_PORT }} -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_IP }} "mkdir -p ~/TANTRA"
+
+      - name: Copy deployment tarball to VM
+        run: |
+          sshpass -p "${{ secrets.VM_PASSWORD }}" scp -P ${{ secrets.VM_PORT }} -o StrictHostKeyChecking=no deployment.tar.gz ${{ secrets.VM_USERNAME }}@${{ secrets.VM_IP }}:~/TANTRA/deployment.tar.gz
+
+      - name: Deploy production stack on VM
+        run: |
+          sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -p ${{ secrets.VM_PORT }} -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_IP }} "bash -s" << 'EOF'
+            set -euo pipefail
+            cd ~/TANTRA
+            
+            # Clean directory first, keeping docs folder (Release History) and the tarball we just copied
+            find . -mindepth 1 \! -name docs \! -path './docs/*' \! -name deployment.tar.gz -exec rm -rf {} +
+            
+            # Extract deployment archive and clean up tarball
+            tar -xzf deployment.tar.gz
+            rm -f deployment.tar.gz
+            
+            # Confirm Docker availability
+            docker version
+            docker compose version
+            
+            # Log in to Docker Hub on the VM to authenticate for private pulls
+            echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+            
+            # Restore persistent Release History
+            mkdir -p docs
+            if [ -f /var/tmp/TANTRA/RELEASE_HISTORY.md ]; then
+              cp /var/tmp/TANTRA/RELEASE_HISTORY.md docs/RELEASE_HISTORY.md
+            fi
+            
+            # Generate target compose file from template by substituting the image tag
+            sed "s|IMG_TAG|${{ needs.build.outputs.sha_short }}|g" docker-compose.production.template.yml > docker-compose.production.yml
+
+            # Validate compose config before deploy
+            docker compose -f docker-compose.production.yml config
+            
+            # Deploy production stack
+            docker compose -f docker-compose.production.yml pull
+            
+            # Log out from Docker Hub to secure credentials on the VM
+            docker logout
+
+            docker compose -f docker-compose.production.yml up -d --remove-orphans
+            
+            # Verify deployment status
+            docker compose -f docker-compose.production.yml ps
+            
+            # Health Check - Check docker status and query core endpoint
+            echo "Waiting for services to be healthy..."
+            for i in {1..12}; do
+              # Fallback check for docker compose filter support
+              if docker compose -f docker-compose.production.yml ps --filter "status=running" --filter "health=unhealthy" -q >/dev/null 2>&1; then
+                UNHEALTHY_COUNT=$(docker compose -f docker-compose.production.yml ps --filter "status=running" --filter "health=unhealthy" -q | wc -l)
+                STARTING_COUNT=$(docker compose -f docker-compose.production.yml ps --filter "status=running" --filter "health=starting" -q | wc -l)
+              else
+                UNHEALTHY_COUNT=0
+                STARTING_COUNT=0
+              fi
+              
+              CORE_HEALTH=0
+              curl -sf http://localhost:3008/health > /dev/null && CORE_HEALTH=1
+              
+              if [ "$UNHEALTHY_COUNT" -eq 0 ] && [ "$STARTING_COUNT" -eq 0 ] && [ "$CORE_HEALTH" -eq 1 ]; then
+                echo "All containers and Core endpoint are healthy!"
+                break
+              fi
+              
+              if [ "$i" -eq 12 ]; then
+                echo "Health check failed!"
+                docker compose -f docker-compose.production.yml ps
+                docker compose -f docker-compose.production.yml logs --tail=50
+                exit 1
+              fi
+              
+              echo "Status: $STARTING_COUNT starting, $UNHEALTHY_COUNT unhealthy, core=$CORE_HEALTH. Retrying in 10s..."
+              sleep 10
+            done
+            
+            # Prune old images while preserving recently built ones (last 7 days / 168 hours) to speed up rollbacks
+            docker image prune -af --filter "until=168h"
+          EOF
+
+      - name: Update Release Documentation on Success
+        if: success()
+        run: |
+          sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -p ${{ secrets.VM_PORT }} -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_IP }} "bash -s" << 'EOF'
+            set -euo pipefail
+            cd ~/TANTRA
+            # Initialize release history file if not exists
+            if [ \! -f docs/RELEASE_HISTORY.md ]; then
+              mkdir -p docs
+              echo "# Release History and Deployment Registry" > docs/RELEASE_HISTORY.md
+              echo "" >> docs/RELEASE_HISTORY.md
+              echo "| Timestamp | Image Tag (Git SHA) | Status | Description |" >> docs/RELEASE_HISTORY.md
+              echo "|---|---|---|---|" >> docs/RELEASE_HISTORY.md
+            fi
+            
+            # Log success
+            echo "| $(date -u +'%Y-%m-%d %H:%M:%S UTC') | ${{ needs.build.outputs.sha_short }} | SUCCESS | Stable deployment |" >> docs/RELEASE_HISTORY.md
+          EOF
+
+      - name: Automatic Rollback on Failure
+        if: failure()
+        run: |
+          sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -p ${{ secrets.VM_PORT }} -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_IP }} "bash -s" << 'EOF'
+            set -euo pipefail
+            cd ~/TANTRA
+            
+            # Robust parsing of Release History to extract the 7-character hexadecimal SHA column
+            if [ -f docs/RELEASE_HISTORY.md ] && grep -qE "SUCCESS|ROLLBACK_SUCCESS" docs/RELEASE_HISTORY.md; then
+              LAST_HEALTHY_TAG=$(grep -E "SUCCESS|ROLLBACK_SUCCESS" docs/RELEASE_HISTORY.md | tail -n 1 | awk -F '|' '{
+                for(i=1; i<=NF; i++) {
+                  gsub(/[[:space:]]/, "", $i);
+                  if ($i ~ /^[0-9a-f]{7}$/) {
+                    print $i;
+                    exit;
+                  }
+                }
+              }')
+              
+              if [ -z "$LAST_HEALTHY_TAG" ]; then
+                echo "?? No last healthy tag extracted from Release History. Cannot perform automatic rollback."
+                exit 1
+              fi
+              
+              echo "?? Deployment failed! Rolling back to last healthy tag: $LAST_HEALTHY_TAG"
+              
+              # Re-generate active compose file from original template with the healthy tag
+              sed "s|IMG_TAG|$LAST_HEALTHY_TAG|g" docker-compose.production.template.yml > docker-compose.production.yml
+              
+              # Log in to Docker Hub on the VM to authenticate for rollback pulls
+              echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+              
+              # Pull last healthy tag
+              docker compose -f docker-compose.production.yml pull
+              
+              # Log out from Docker Hub to secure credentials on the VM
+              docker logout
+              
+              # Deploy last healthy tag
+              docker compose -f docker-compose.production.yml up -d --remove-orphans
+              
+              # Verify deployment status
+              docker compose -f docker-compose.production.yml ps
+              
+              # Log deployed image versions for easier troubleshooting
+              docker compose -f docker-compose.production.yml images
+              
+              # Post-Rollback Verification (Run health check again)
+              echo "Waiting for rollback services to be healthy..."
+              for i in {1..12}; do
+                if docker compose -f docker-compose.production.yml ps --filter "status=running" --filter "health=unhealthy" -q >/dev/null 2>&1; then
+                  UNHEALTHY_COUNT=$(docker compose -f docker-compose.production.yml ps --filter "status=running" --filter "health=unhealthy" -q | wc -l)
+                  STARTING_COUNT=$(docker compose -f docker-compose.production.yml ps --filter "status=running" --filter "health=starting" -q | wc -l)
+                else
+                  UNHEALTHY_COUNT=0
+                  STARTING_COUNT=0
+                fi
+                
+                CORE_HEALTH=0
+                curl -sf http://localhost:3008/health > /dev/null && CORE_HEALTH=1
+                
+                if [ "$UNHEALTHY_COUNT" -eq 0 ] && [ "$STARTING_COUNT" -eq 0 ] && [ "$CORE_HEALTH" -eq 1 ]; then
+                  echo "Rollback deployment is healthy!"
+                  echo "| $(date -u +'%Y-%m-%d %H:%M:%S UTC') | $LAST_HEALTHY_TAG | ROLLBACK_SUCCESS | Rollback from failed ${{ needs.build.outputs.sha_short }} is healthy |" >> docs/RELEASE_HISTORY.md
+                  exit 0
+                fi
+                
+                if [ "$i" -eq 12 ]; then
+                  echo "Rollback health check failed!"
+                  echo "| $(date -u +'%Y-%m-%d %H:%M:%S UTC') | $LAST_HEALTHY_TAG | ROLLBACK_FAILED | Rollback from failed ${{ needs.build.outputs.sha_short }} failed health check |" >> docs/RELEASE_HISTORY.md
+                  exit 1
+                fi
+                
+                echo "Status: $STARTING_COUNT starting, $UNHEALTHY_COUNT unhealthy, core=$CORE_HEALTH. Retrying in 10s..."
+                sleep 10
+              done
+            else
+              echo "?? No last healthy tag found in Release History. Cannot perform automatic rollback."
+              if [ \! -f docs/RELEASE_HISTORY.md ]; then
+                mkdir -p docs
+                echo "# Release History and Deployment Registry" > docs/RELEASE_HISTORY.md
+                echo "" >> docs/RELEASE_HISTORY.md
+                echo "| Timestamp | Image Tag (Git SHA) | Status | Description |" >> docs/RELEASE_HISTORY.md
+                echo "|---|---|---|---|" >> docs/RELEASE_HISTORY.md
+              fi
+              echo "| $(date -u +'%Y-%m-%d %H:%M:%S UTC') | ${{ needs.build.outputs.sha_short }} | FAILED | Deployment failed and no rollback tag was available |" >> docs/RELEASE_HISTORY.md
+              exit 1
+            fi
+          EOF
+
+      - name: Save persistent Release History
+        if: always()
+        run: |
+          sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -p ${{ secrets.VM_PORT }} -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_IP }} "bash -s" << 'EOF'
+            set -euo pipefail
+            cd ~/TANTRA
+            if [ -f docs/RELEASE_HISTORY.md ]; then
+              mkdir -p /var/tmp/TANTRA
+              cp docs/RELEASE_HISTORY.md /var/tmp/TANTRA/RELEASE_HISTORY.md
+            fi
+          EOF
