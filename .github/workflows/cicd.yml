@@ -68,37 +68,37 @@ jobs:
         run: |
           docker buildx build --push \
             --tag bhiv/tantra-core:${{ steps.vars.outputs.sha_short }} \
-            -f services/core/Dockerfile services/core
+            -f services/core/Dockerfile services
 
       - name: Build and push Sarathi image
         run: |
           docker buildx build --push \
             --tag bhiv/tantra-sarathi:${{ steps.vars.outputs.sha_short }} \
-            -f services/sarathi/Dockerfile services/sarathi
+            -f services/sarathi/Dockerfile services
 
       - name: Build and push Bridge image
         run: |
           docker buildx build --push \
             --tag bhiv/tantra-bridge:${{ steps.vars.outputs.sha_short }} \
-            -f services/bridge/Dockerfile services/bridge
+            -f services/bridge/Dockerfile services
 
       - name: Build and push Execution image
         run: |
           docker buildx build --push \
             --tag bhiv/tantra-execution:${{ steps.vars.outputs.sha_short }} \
-            -f services/execution/Dockerfile services/execution
+            -f services/execution/Dockerfile services
 
       - name: Build and push Bucket image
         run: |
           docker buildx build --push \
             --tag bhiv/tantra-bucket:${{ steps.vars.outputs.sha_short }} \
-            -f services/bucket/Dockerfile services/bucket
+            -f services/bucket/Dockerfile services
 
       - name: Build and push InsightFlow image
         run: |
           docker buildx build --push \
             --tag bhiv/tantra-insightflow:${{ steps.vars.outputs.sha_short }} \
-            -f services/insightflow/Dockerfile services/insightflow
+            -f services/insightflow/Dockerfile services
 
   deploy:
     name: Deploy to remote production VM via SSH
