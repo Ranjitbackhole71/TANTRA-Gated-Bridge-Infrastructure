@@ -294,7 +294,9 @@ GET /retrieve/:trace_id/:execution_id
 
 ---
 
-## InsightFlow Local Receiver (:3005)
+## InsightFlow Local Receiver (local dev :3005; VM base URL http://163.128.209.18:8122)
+
+> For the InsightFlow VM deployment, use http://163.128.209.18:8122 as the base URL. The endpoint paths below are unchanged; :3005 remains the local development receiver reference.
 
 ### Health Check
 ```
