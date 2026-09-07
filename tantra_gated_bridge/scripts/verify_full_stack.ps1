@@ -3,6 +3,9 @@ Write-Host " TANTRA Gated Bridge - Full Stack Verify"
 Write-Host "=========================================="
 Write-Host ""
 
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$replayStore = Join-Path $repoRoot "services\replay_persistence\append_only_store.js"
+
 $exitCode = 0
 
 # Phase 1: Health checks
@@ -57,22 +60,33 @@ try {
 Write-Host "[3/5] Replay persistence check..."
 try {
     $recordCount = & node -e "
-    const store = require('../services/replay_persistence/append_only_store');
+    const store = require(process.argv[1]);
     console.log(store.getChainState().record_count);
-    "
+    " "$replayStore"
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Replay persistence verification failed"
+    }
+
     Write-Host "  PASS: Replay log has $recordCount records"
 } catch {
-    Write-Host "  SKIP: Replay persistence check (requires node)"
+    Write-Host "  FAIL: Replay persistence check: $_"
+    $exitCode = 1
 }
 
 # Phase 4: Chain integrity
 Write-Host "[4/5] Chain integrity check..."
 try {
     $integrityResult = & node -e "
-    const store = require('../services/replay_persistence/append_only_store');
+    const store = require(process.argv[1]);
     const result = store.validateChainIntegrity();
     console.log(JSON.stringify(result));
-    "
+    " "$replayStore"
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Chain integrity verification failed"
+    }
+
     $integrity = $integrityResult | ConvertFrom-Json
     if ($integrity.valid) {
         Write-Host "  PASS: Chain integrity valid ($($integrity.record_count) records)"
@@ -81,7 +95,8 @@ try {
         $exitCode = 1
     }
 } catch {
-    Write-Host "  SKIP: Chain integrity check (requires node)"
+    Write-Host "  FAIL: Chain integrity check: $_"
+    $exitCode = 1
 }
 
 # Phase 5: Summary

@@ -120,8 +120,7 @@ app.post('/token', (req, res) => {
   if (algo === 'RS256') {
     const token = jwt.sign(claims, RSA_PRIVATE_KEY, {
       algorithm: 'RS256',
-      keyid: rsaKid,
-      expiresIn: process.env.JWT_EXPIRY || '1h'
+      keyid: rsaKid
     });
     tokenCache.set(jti, expiryMs);
     log(trace_id, execution_id, 'sarathi', 'success', `RS256 token issued with jti: ${jti}`);

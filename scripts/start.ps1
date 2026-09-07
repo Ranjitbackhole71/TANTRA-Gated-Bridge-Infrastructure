@@ -47,9 +47,9 @@ if ($Mode -eq "docker") {
   foreach ($port in @(3000, 3001, 3002, 3003, 3004)) {
     try {
       $result = Invoke-RestMethod -Uri "http://localhost:$port/health" -TimeoutSec 2 -ErrorAction Stop
-      Write-Host "  Port $port: $($result.service)"
+      Write-Host "  Port $($port): $($result.service)"
     } catch {
-      Write-Host "  Port $port: DOWN"
+      Write-Host "  Port $($port): DOWN"
     }
   }
   
@@ -84,7 +84,7 @@ if ($Mode -eq "docker") {
   
   foreach ($svc in $services) {
     Write-Host "  Starting $($svc.name)..."
-    $proc = Start-Process -FilePath "node" -ArgumentList "app.js" -WorkingDirectory "$PSScriptRoot\..\services\$($svc.dir)" -PassThru -NoNewWindow
+    $proc = Start-Process -WindowStyle Hidden -FilePath "node" -ArgumentList "app.js" -WorkingDirectory "$PSScriptRoot\..\services\$($svc.dir)" -PassThru
     Add-Content -Path $pidFile -Value $proc.Id
     Start-Sleep -Milliseconds 500
   }
@@ -99,9 +99,9 @@ if ($Mode -eq "docker") {
   foreach ($port in @(3000, 3001, 3002, 3003, 3004)) {
     try {
       $result = Invoke-RestMethod -Uri "http://localhost:$port/health" -TimeoutSec 2 -ErrorAction Stop
-      Write-Host "  Port $port: $($result.service)"
+      Write-Host "  Port $($port): $($result.service)"
     } catch {
-      Write-Host "  Port $port: DOWN"
+      Write-Host "  Port $($port): DOWN"
     }
   }
   

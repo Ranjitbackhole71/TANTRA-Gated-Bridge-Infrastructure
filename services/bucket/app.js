@@ -44,7 +44,7 @@ app.get('/health', (req, res) => {
 
 // Store artifact with read-after-write verification
 app.post('/store', async (req, res) => {
-  const { trace_id, execution_id, result, timestamp, duration_ms } = req.body;
+  const { trace_id, execution_id, result, timestamp = new Date().toISOString(), duration_ms } = req.body;
 
   if (!trace_id || !execution_id) {
     log(trace_id, execution_id, 'bucket', 'error', 'Missing trace_id or execution_id');
