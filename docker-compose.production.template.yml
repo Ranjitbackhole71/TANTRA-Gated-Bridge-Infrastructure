@@ -93,6 +93,9 @@ services:
       - PORT=3002
       - SARATHI_URL=http://tantra-sarathi:3001
       - EXECUTION_URL=http://tantra-execution:3003
+      - INSIGHTFLOW_URL=${INSIGHTFLOW_URL}
+      - INSIGHTFLOW_ENABLED=${INSIGHTFLOW_ENABLED}
+      - INSIGHTFLOW_API_KEY=${INSIGHTFLOW_API_KEY}
     volumes:
       - replay-data:/app/replay_persistence/data
     networks:

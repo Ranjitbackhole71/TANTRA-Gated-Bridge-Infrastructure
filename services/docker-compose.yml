@@ -53,7 +53,7 @@ services:
       - PORT=3002
       - SARATHI_URL=http://sarathi:3001
       - EXECUTION_URL=http://execution:3003
-      - INSIGHTFLOW_URL=http://163.128.209.18:8122
+      - INSIGHTFLOW_URL=${INSIGHTFLOW_URL}
       - INSIGHTFLOW_ENABLED=true
       - INSIGHTFLOW_API_KEY=${INSIGHTFLOW_API_KEY}
     depends_on:
