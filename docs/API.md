@@ -294,9 +294,11 @@ GET /retrieve/:trace_id/:execution_id
 
 ---
 
-## InsightFlow Local Receiver (local dev :3005; VM base URL http://163.128.209.18:8122)
+## InsightFlow Telemetry Receiver (internal service `tantra-insightflow:3005`)
 
-> For the InsightFlow VM deployment, use http://163.128.209.18:8122 as the base URL. The endpoint paths below are unchanged; :3005 remains the local development receiver reference.
+> In production, `tantra-bridge` sends telemetry to the internal Docker-network service `tantra-insightflow` on port 3005 (`INSIGHTFLOW_URL=http://tantra-insightflow:3005`). For local development, use `http://localhost:3005`.
+
+> **Note:** `163.128.209.18:8122` is a separate external **InsightBridge** enforcement service and is NOT the TANTRA telemetry receiver.
 
 ### Health Check
 ```
