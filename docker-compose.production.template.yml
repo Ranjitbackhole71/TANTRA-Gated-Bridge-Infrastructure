@@ -39,6 +39,7 @@ services:
       - PORT=3000
       - SARATHI_URL=http://tantra-sarathi:3001
       - BRIDGE_URL=http://tantra-bridge:3002
+      - INSIGHTFLOW_URL=http://tantra-insightflow:3005
     networks:
       - tantra-network
     depends_on:

@@ -22,6 +22,7 @@ const SARATHI_URL = process.env.SARATHI_URL || 'http://localhost:3001';
 const BRIDGE_URL = process.env.BRIDGE_URL || 'http://localhost:3002';
 const SARATHI_TIMEOUT_MS = parseInt(process.env.SARATHI_TIMEOUT_MS) || 25000;
 const BRIDGE_TIMEOUT_MS = parseInt(process.env.BRIDGE_TIMEOUT_MS) || 30000;
+const INSIGHTFLOW_URL = process.env.INSIGHTFLOW_URL || 'http://localhost:3005';
 
 app.get('/health', (req, res) => {
   res.json({ service: 'core', status: 'healthy' });
@@ -66,6 +67,27 @@ app.get('/diagnostic/sarathi-health', async (req, res) => {
         axios_version: axios.VERSION || null
       }
     });
+  }
+});
+
+app.get('/telemetry/summary', async (req, res) => {
+  try {
+    const resp = await axios.get(`${INSIGHTFLOW_URL}/telemetry/summary`, { timeout: 5000 });
+    res.json(resp.data);
+  } catch (err) {
+    res.status(503).json({ error: 'InsightFlow unavailable' });
+  }
+});
+
+app.get('/telemetry', async (req, res) => {
+  try {
+    const url = new URL(`${INSIGHTFLOW_URL}/telemetry`);
+    if (req.query.trace_id) url.searchParams.set('trace_id', req.query.trace_id);
+    if (req.query.limit) url.searchParams.set('limit', req.query.limit);
+    const resp = await axios.get(url.toString(), { timeout: 5000 });
+    res.json(resp.data);
+  } catch (err) {
+    res.status(503).json({ error: 'InsightFlow unavailable' });
   }
 });
 
