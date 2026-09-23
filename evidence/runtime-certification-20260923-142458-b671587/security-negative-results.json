@@ -1,0 +1,17 @@
+{
+  "token_algorithm": "EdDSA",
+  "checks": [
+    {"check": "valid authentication accepted", "status": 200, "result": "PASS"},
+    {"check": "invalid authentication rejected", "status": 401, "result": "PASS"},
+    {"check": "JTI replay rejected", "status": 401, "result": "PASS"},
+    {"check": "trace_id mutation rejected", "status": 400, "result": "PASS"},
+    {"check": "execution_id mutation rejected", "status": 400, "result": "PASS"},
+    {"check": "CET/hash mismatch rejected", "status": 400, "result": "PASS"}
+  ],
+  "restart_replay": {
+    "first_request_status": 200,
+    "bridge_restart": true,
+    "replayed_request_status_after_restart": 401,
+    "result": "PASS"
+  }
+}

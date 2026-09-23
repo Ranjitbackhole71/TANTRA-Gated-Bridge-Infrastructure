@@ -1,0 +1,17 @@
+{
+  "current_trace_id": "9edb53c3-7fa4-4807-b281-faaa0dbdd6c0",
+  "current_trace_event_count": 3,
+  "current_trace_events": [
+    "telemetry:execution_transition / forwarding",
+    "telemetry:response_sent / completed",
+    "telemetry:execution_transition / completed"
+  ],
+  "queries": {
+    "/telemetry": {"status": 200, "total": 26},
+    "/telemetry/summary": {"status": 200, "total_events": 26, "unique_traces": 10, "current_trace_event_count": 3},
+    "/telemetry/9edb53c3-7fa4-4807-b281-faaa0dbdd6c0": {"status": 200, "count": 3}
+  },
+  "real_runtime_only": true,
+  "mock_events_inserted": false,
+  "result": "PASS"
+}

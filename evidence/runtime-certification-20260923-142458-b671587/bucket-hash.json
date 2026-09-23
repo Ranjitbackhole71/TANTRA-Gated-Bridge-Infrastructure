@@ -1,0 +1,26 @@
+{
+  "execution_artifact_retrieve": {
+    "request": "GET http://localhost:3004/retrieve/9edb53c3-7fa4-4807-b281-faaa0dbdd6c0/481cbee3-7922-45c8-8ff6-b44d61b83b01",
+    "result": "PASS",
+    "trace_id": "9edb53c3-7fa4-4807-b281-faaa0dbdd6c0",
+    "execution_id": "481cbee3-7922-45c8-8ff6-b44d61b83b01",
+    "hash": "6fe76f3b0a940e6ec6e9950e7bd8999cae84b44cb6f6ee02e90049d91ccc86f5"
+  },
+  "read_after_write": {
+    "store_request": "POST http://localhost:3004/store",
+    "retrieve_request": "GET http://localhost:3004/retrieve/cert-bucket-trace/cert-bucket-exec",
+    "store_status": 201,
+    "verified": true,
+    "persistent": true,
+    "ids_match": true,
+    "sha256_match": true,
+    "hash": "d3f3bae3e335d9e1579b2777c1e2f8465faa5e938c131a4d08ecca045c996598",
+    "result": "PASS"
+  },
+  "downstream_failure": {
+    "bucket_stopped": true,
+    "bridge_status": 503,
+    "bucket_restarted_health_status": 200,
+    "result": "PASS"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "trace_id": "9edb53c3-7fa4-4807-b281-faaa0dbdd6c0",
+  "root_execution_id": "481cbee3-7922-45c8-8ff6-b44d61b83b01",
+  "total_records": 4,
+  "reconstructed_chain": [
+    {
+      "execution_id": "481cbee3-7922-45c8-8ff6-b44d61b83b01",
+      "event_count": 4,
+      "event_types": ["jti_used", "telemetry:execution_transition", "telemetry:response_sent"],
+      "services": ["bridge"]
+    }
+  ],
+  "result": "PASS"
+}

@@ -1,0 +1,10 @@
+{
+  "source": "running tantra-bridge container /app/replay_persistence",
+  "chain_state_record_count": 62,
+  "chain_integrity_valid": true,
+  "chain_errors": [],
+  "certification_trace_record_count": 4,
+  "continuity_valid": true,
+  "continuity_chain_hash": "d58472c81a7fd85c1e2fed4ae68b5179f40dea49b87bed11aff15bdc45b1305e",
+  "result": "PASS"
+}

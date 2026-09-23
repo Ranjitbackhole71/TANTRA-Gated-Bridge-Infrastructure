@@ -1,0 +1,14 @@
+{
+  "request": "POST http://localhost:3000/initiate",
+  "body": {"workload": "phase2-core-complete-certification"},
+  "status": 200,
+  "trace_id": "9edb53c3-7fa4-4807-b281-faaa0dbdd6c0",
+  "execution_id": "481cbee3-7922-45c8-8ff6-b44d61b83b01",
+  "cet_hash": "174e150793a5cfe4063642370526e8077413b93ada76c63b407330807a626563",
+  "result_status": "completed",
+  "result_hash": "60ace9cd8832c73213735132aa76682f54c6ffef944ab70c6fb9be185148b01b",
+  "artifact_location": "artifacts/9edb53c3-7fa4-4807-b281-faaa0dbdd6c0/481cbee3-7922-45c8-8ff6-b44d61b83b01",
+  "trace_continuity": true,
+  "execution_continuity": true,
+  "authorized_execution": true
+}
