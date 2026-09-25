@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
 require('dotenv').config();
+const { extractArtifactMetadata } = require('./metadata');
 
 const app = express();
 app.use(express.json());
@@ -135,12 +136,16 @@ app.post('/store', async (req, res) => {
       });
     }
 
+    // Automated metadata extraction (Requirement 6): derived from the verified stored row
+    const metadata = extractArtifactMetadata(stored);
+
     log(trace_id, execution_id, 'bucket', 'success', 'Artifact stored and verified (persistent)');
     res.status(201).json({
       location,
       trace_id,
       execution_id,
       hash: artifactHash,
+      metadata,
       verified: true,
       persistent: true
     });
@@ -176,6 +181,9 @@ app.get('/retrieve/:trace_id/:execution_id', (req, res) => {
     stored_at: stored.stored_at,
     hash: stored.hash
   };
+
+  // Automated metadata extraction (Requirement 6): same extraction as at store time
+  artifact.metadata = extractArtifactMetadata(stored);
 
   log(trace_id, execution_id, 'bucket', 'success', 'Artifact retrieved (persistent)');
   res.json(artifact);
