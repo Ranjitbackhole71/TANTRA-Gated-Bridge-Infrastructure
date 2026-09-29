@@ -65,7 +65,7 @@ User → Setu (:8000) → Core (:3000) → Sarathi (:3001) → Bridge (:3002) �
 | Replay Persistence → Reconstruction | File read | COMPLETE | Replay | SHA-256 chain |
 | Observability → Replay Log | Append | COMPLETE | Observability | passive telemetry |
 | Setu → Core | HTTP POST /initiate | COMPLETE | Setu | User workload |
-| Bridge → InsightFlow | Telemetry forwarding | PARTIAL | InsightFlow | Contract-only (local receiver active) |
+| Bridge → InsightFlow | Telemetry forwarding | COMPLETE | InsightFlow | Live local receiver active on :3005; current contract and telemetry checks pass |
 
 ---
 
@@ -150,16 +150,23 @@ Chain records: +9 (564 total)
 
 ---
 
-## 4. Test Results
+## 4. Test Results (historical — 2026-07-14)
+
+> **Superseded 2026-09-25.** Current maintained suites: **24/24 unit** (`npm run test:unit`) and
+> **7/7 API contract** (`npm run test:contract`), both passing in GitHub Actions run #10 on commit
+> `32b10a3` — https://github.com/Ranjitbackhole71/TANTRA-Gated-Bridge-Infrastructure/actions/runs/36102114056
+> The Python platform tests below were removed in Phase 2 remediation (they imported `runtime.*`
+> modules that do not exist in this repository). Runtime certification evidence:
+> `evidence/runtime-certification-20260923-142458-b671587/`.
 
 | Suite | Passed | Failed | Total | Evidence |
 |---|---|---|---|---|
-| Python Platform Tests (pytest) | 76 | 0 | 76 | `pytest tests/platform_tests/ -v` |
+| Python Platform Tests (pytest) | 76 | 0 | 76 | **REMOVED in Phase 2** (historical: `pytest tests/platform_tests/ -v`) |
 | Survivability Test Suite | 7 | 0 | 7 | `node services/survivability_tests/test_suite.js` |
 | Bridge Convergence Tests | 12 | 0 | 12 | `node services/bridge/tests/convergence_test.js` |
 | Runtime Integration Tests | 4 | 0 | 4 | E2E + replay + trace + bucket (live HTTP) |
 | Setu Lifecycle Tests | 2 | 0 | 2 | POST /process → full runtime chain → response |
-| **TOTAL** | **101** | **0** | **101** | |
+| **TOTAL** | **101** | **0** | **101** | *historical — superseded by 24/24 unit + 7/7 contract (CI run #10)* |
 
 ---
 
@@ -313,7 +320,7 @@ console.log('Valid:', r.valid, '| Records:', r.record_count, '| Errors:', r.erro
 | Replay cache in-memory | Medium | Documented | warmJtiCache() on restart |
 | No cross-node replication | Medium | Documented | Use shared storage |
 | No mTLS | Low | Documented | Add reverse proxy |
-| No CI/CD | Low | Documented | Manual verification via scripts |
+| ~~No CI/CD~~ GitHub Actions CI/CD exists (`.github/workflows/cicd.yml`) | Resolved 2026-09-25 | CI runs unit + contract suites and gates build/deploy (run #10 SUCCESS) |
 
 ---
 
