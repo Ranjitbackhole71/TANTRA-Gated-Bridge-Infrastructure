@@ -38,6 +38,10 @@ services:
       - PORT=3000
       - SARATHI_URL=http://tantra-sarathi:3001
       - BRIDGE_URL=http://tantra-bridge:3002
+      - MASTERDB_BASE_URL=${MASTERDB_BASE_URL:-http://127.0.0.1:8000/docs}
+      - MASTERDB_AUTH_ACTOR=${MASTERDB_AUTH_ACTOR:-TANTRA}
+      - MASTERDB_AUTH_PASSWORD=${MASTERDB_AUTH_PASSWORD:-}
+      - MASTERDB_CONTAINERIZED=true
     networks:
       - aiaic-network
     depends_on:

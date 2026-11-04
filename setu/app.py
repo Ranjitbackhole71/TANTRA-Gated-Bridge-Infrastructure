@@ -20,6 +20,7 @@ import requests as http_client
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from services.masterdb import masterdb_client
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -293,8 +294,68 @@ async def root():
             "artifact": "GET /artifact/{trace_id}/{execution_id}",
             "telemetry": "GET /telemetry/{trace_id}",
             "telemetry_summary": "GET /telemetry",
+            "masterdb_capabilities": "GET /masterdb/capabilities",
         },
     }
+
+
+@app.get("/masterdb/capabilities")
+def masterdb_capabilities(
+    domain: str = None,
+    status: str = None,
+    search: str = None
+):
+    try:
+        return masterdb_client.discover_capabilities(
+            domain=domain,
+            status=status,
+            search=search
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.get("/masterdb/capabilities/{capability_id}")
+def masterdb_capability(capability_id: str):
+    try:
+        return masterdb_client.get_capability(capability_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.get("/masterdb/capabilities/{capability_id}/contract")
+def masterdb_contract(capability_id: str):
+    try:
+        return masterdb_client.get_capability_contract(capability_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.post("/masterdb/access/request")
+def masterdb_access_request(payload: dict[str, Any]):
+    try:
+        return masterdb_client.request_capability_access(payload)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.get("/masterdb/access/{request_id}")
+def masterdb_access_status(request_id: str):
+    try:
+        return masterdb_client.get_access_request(request_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.post("/masterdb/capabilities/{capability_id}/retrieve")
+def masterdb_retrieve(capability_id: str, payload: dict[str, Any]):
+    try:
+        return masterdb_client.retrieve_capability_data(
+            capability_id,
+            payload
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 # ---------------------------------------------------------------------------

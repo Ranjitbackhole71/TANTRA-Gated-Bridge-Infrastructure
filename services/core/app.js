@@ -1,6 +1,11 @@
 const express = require('express');
 const axios = require('axios');
 const crypto = require('crypto');
+const path = require('path');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./swagger');
+const { requestMasterdbToken } = require('./masterdb_auth');
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 require('dotenv').config();
 
 const app = express();
@@ -23,9 +28,154 @@ const BRIDGE_URL = process.env.BRIDGE_URL || 'http://localhost:3002';
 const SARATHI_TIMEOUT_MS = parseInt(process.env.SARATHI_TIMEOUT_MS) || 25000;
 const BRIDGE_TIMEOUT_MS = parseInt(process.env.BRIDGE_TIMEOUT_MS) || 30000;
 const INSIGHTFLOW_URL = process.env.INSIGHTFLOW_URL || 'http://localhost:3005';
+const masterdbBaseUrl = new URL(process.env.MASTERDB_BASE_URL || 'http://163.128.209.18:30308');
+if (masterdbBaseUrl.pathname.replace(/\/+$/, '') === '/docs') {
+  masterdbBaseUrl.pathname = '/';
+}
+if (
+  process.env.MASTERDB_CONTAINERIZED === 'true' &&
+  ['localhost', '127.0.0.1', '::1'].includes(masterdbBaseUrl.hostname)
+) {
+  masterdbBaseUrl.hostname = 'host.docker.internal';
+}
+const MASTERDB_BASE_URL = masterdbBaseUrl.toString().replace(/\/+$/, '');
+const MASTERDB_AUTH_ACTOR = process.env.MASTERDB_AUTH_ACTOR;
+const MASTERDB_AUTH_PASSWORD = process.env.MASTERDB_AUTH_PASSWORD || process.env.AUTH_PASSWORD;
+let masterdbAccessToken = null;
+
+async function getMasterdbAccessToken() {
+  if (masterdbAccessToken) return masterdbAccessToken;
+  const token = await requestMasterdbToken({
+    axios,
+    baseUrl: MASTERDB_BASE_URL,
+    actor: MASTERDB_AUTH_ACTOR,
+    password: MASTERDB_AUTH_PASSWORD
+  });
+  masterdbAccessToken = token;
+  return token;
+}
 
 app.get('/health', (req, res) => {
   res.json({ service: 'core', status: 'healthy' });
+});
+
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'TANTRA Core Service API'
+}));
+
+app.get('/docs.json', (req, res) => {
+  res.type('application/json').send(swaggerSpec);
+});
+
+app.get('/masterdb/capabilities', async (req, res) => {
+  try {
+    const token = await getMasterdbAccessToken();
+    const params = {};
+    for (const key of ['domain', 'status', 'search']) {
+      if (typeof req.query[key] === 'string' && req.query[key]) {
+        params[key] = req.query[key];
+      }
+    }
+
+    const response = await axios.get(
+      `${MASTERDB_BASE_URL}/tantra/capabilities`,
+      {
+        params,
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 15000
+      }
+    );
+    return res.status(response.status).json(response.data);
+  } catch (err) {
+    const upstreamStatus = err.response ? err.response.status : null;
+    log(null, null, 'core', 'error', `MasterDB capabilities request failed (upstream status: ${upstreamStatus || 'unavailable'})`);
+    return res.status(502).json({
+      error: 'MasterDB capabilities request failed',
+      upstream_status: upstreamStatus
+    });
+  }
+});
+
+app.get('/masterdb/capabilities/:capabilityId/contract', async (req, res) => {
+  try {
+    const token = await getMasterdbAccessToken();
+    const capabilityId = encodeURIComponent(req.params.capabilityId);
+    const response = await axios.get(
+      `${MASTERDB_BASE_URL}/tantra/capabilities/${capabilityId}/contract`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 15000
+      }
+    );
+    return res.status(response.status).json(response.data);
+  } catch (err) {
+    const upstreamStatus = err.response ? err.response.status : null;
+    log(null, null, 'core', 'error', `MasterDB capability contract request failed (upstream status: ${upstreamStatus || 'unavailable'})`);
+    if (err.response) {
+      return res.status(err.response.status).json(err.response.data);
+    }
+    return res.status(502).json({
+      error: 'MasterDB capability contract request failed',
+      upstream_status: null
+    });
+  }
+});
+
+app.post('/masterdb/access/request', async (req, res) => {
+  try {
+    const token = await getMasterdbAccessToken();
+    const response = await axios.post(
+      `${MASTERDB_BASE_URL}/tantra/access/request`,
+      req.body,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 15000
+      }
+    );
+    return res.status(response.status).json(response.data);
+  } catch (err) {
+    const upstreamStatus = err.response ? err.response.status : null;
+    log(null, null, 'core', 'error', `MasterDB access request failed (upstream status: ${upstreamStatus || 'unavailable'})`);
+    if (err.response) {
+      return res.status(err.response.status).json(err.response.data);
+    }
+    return res.status(502).json({
+      error: 'MasterDB access request failed',
+      upstream_status: null
+    });
+  }
+});
+
+app.post('/masterdb/capabilities/:capabilityId/retrieve', async (req, res) => {
+  try {
+    const token = await getMasterdbAccessToken();
+    const { filters, ...payload } = req.body;
+    if (filters && !payload.query_params) {
+      payload.query_params = filters;
+    }
+
+    const capabilityId = encodeURIComponent(req.params.capabilityId);
+    const response = await axios.post(
+      `${MASTERDB_BASE_URL}/tantra/capabilities/${capabilityId}/retrieve`,
+      payload,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 15000
+      }
+    );
+    return res.status(response.status).json(response.data);
+  } catch (err) {
+    const upstreamStatus = err.response ? err.response.status : null;
+    log(null, null, 'core', 'error', `MasterDB capability retrieval failed (upstream status: ${upstreamStatus || 'unavailable'})`);
+    if (err.response) {
+      return res.status(err.response.status).json(err.response.data);
+    }
+    return res.status(502).json({
+      error: 'MasterDB capability retrieval failed',
+      upstream_status: null
+    });
+  }
 });
 
 app.get('/diagnostic/sarathi-health', async (req, res) => {

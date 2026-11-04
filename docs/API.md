@@ -2,6 +2,12 @@
 
 ## Core Service (:3000)
 
+### API Documentation
+```
+GET /docs/       (Swagger UI)
+GET /docs.json   (OpenAPI document)
+```
+
 ### Health Check
 ```
 GET /health
@@ -13,6 +19,36 @@ GET /health
   "status": "healthy"
 }
 ```
+
+### MasterDB Capabilities
+```
+GET /masterdb/capabilities
+```
+Optional query parameters: `domain`, `status`, and `search`. Core authenticates with MasterDB using `MASTERDB_AUTH_PASSWORD` and forwards the request to `/tantra/capabilities`.
+
+**Configuration**: Set `MASTERDB_BASE_URL`, `MASTERDB_AUTH_ACTOR`, and `MASTERDB_AUTH_PASSWORD` in the TANTRA environment. The MasterDB deployment must also have server-side authentication configured to issue tokens; setting the TANTRA client credentials alone does not enable token issuance.
+
+**Error Response** (502): MasterDB authentication or the upstream capabilities request failed.
+
+### MasterDB Capability Contract
+```
+GET /masterdb/capabilities/{capabilityId}/contract
+```
+Returns the requested capability contract from MasterDB. Upstream HTTP errors such as `401`, `403`, and `404` are forwarded.
+
+### MasterDB Capability Access Request
+```
+POST /masterdb/access/request
+Content-Type: application/json
+```
+Required body fields: `application_id`, `capability_id`, and `purpose`. Optional fields: `capability_version` and `request_id`. Core forwards the request to MasterDB and returns its response.
+
+### MasterDB Capability Data Retrieval
+```
+POST /masterdb/capabilities/{capabilityId}/retrieve
+Content-Type: application/json
+```
+Send the issued `access_token` and retrieval parameters. Core maps an optional `filters` object to MasterDB's `query_params` field. A real access token from an approved access request is required; a placeholder token will be rejected.
 
 ### Sarathi Dependency Diagnostic
 ```
